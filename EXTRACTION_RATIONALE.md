@@ -1,0 +1,132 @@
+# Why this subset exists
+
+## Goal
+
+`minimal-groot` is a fine-tuning-only extraction of Isaac GR00T N1.7. Its goal
+is to preserve the existing, tested training behavior without carrying the
+simulation, deployment, evaluation, and real-robot infrastructure from the
+upstream repository.
+
+This is deliberately an extraction rather than a rewrite. GR00T fine-tuning
+depends on details that are easy to miss when recreating the pipeline: modality
+registration, temporal indexing, dataset statistics, state and action
+normalization, processor serialization, Hugging Face model registration,
+distributed synchronization, and standalone checkpoint formatting. Keeping
+the relevant upstream implementation intact retains those behaviors and their
+edge-case handling.
+
+## How the boundary was chosen
+
+The extraction starts at the supported fine-tuning entry point:
+`gr00t/experiment/launch_finetune.py`. We followed its static imports, runtime
+imports, model-registration side effects, and file resources until the
+dependency graph closed. The resulting subset was then checked by importing
+the entry point in a clean environment, building a wheel, and running focused
+upstream regression tests.
+
+The copied implementation is organized into five responsibilities:
+
+- **Configuration** defines the N1.7 model, datasets, training arguments,
+  embodiment modalities, and DeepSpeed settings. These files also validate
+  incompatible precision, batching, modality, and resume configurations.
+- **Data loading and processing** reads GR00T-compatible LeRobot datasets,
+  selects temporally indexed observations and actions, decodes video, computes
+  or merges statistics, and converts physical states and actions into the
+  representations expected by the model.
+- **Model code** contains the N1.7 action head, Qwen3-VL backbone adapter,
+  diffusion transformer modules, image augmentation, processor, and Hugging
+  Face registration. Model and processor registration are import-time side
+  effects required when loading existing checkpoints.
+- **Training orchestration** assembles the model, processor, dataset, collator,
+  Hugging Face trainer, distributed runtime, and checkpoint callbacks. It
+  preserves single-GPU, DDP, and DeepSpeed paths.
+- **Small utilities** provide distributed rank coordination, safe serialization
+  of initial actions, and TorchCodec-backed video access used by the dataset
+  loader.
+
+The shell launcher and one custom-embodiment modality example are included so
+the extracted pipeline has a concrete invocation and configuration template.
+License and attribution files remain with the copied source.
+
+## What is intentionally excluded
+
+The following concerns are outside the current goal and were therefore not
+included:
+
+- Local or remote inference policy APIs
+- ZMQ policy serving, clients, replay policies, and their serialization stack
+- Offline open-loop metrics and plotting
+- Closed-loop simulator and real-robot evaluation
+- LIBERO, SimplerEnv, and RoboCasa repositories
+- ONNX export, TensorRT engines, and inference benchmarks
+- Jetson, Spark, and dGPU deployment containers and installation scripts
+- Dataset conversion, repair, download, and platform activation utilities
+- Benchmark-specific examples, media, notebooks, and documentation tests
+- The general pretraining launcher
+
+These areas do not participate in producing a fine-tuned checkpoint. Excluding
+them avoids large external repositories, mutually incompatible simulator
+environments, hardware-specific packages, and serving dependencies.
+
+## Why some apparently optional pieces remain
+
+Some code is retained even when it is not exercised by every run:
+
+- DeepSpeed configuration is needed by the upstream default multi-GPU path.
+- TorchCodec is needed when training data stores observations as video.
+- Distributed helpers protect rank-zero file generation and propagate failures
+  so multi-GPU workers do not deadlock.
+- Checkpoint callbacks copy processor and normalization artifacts into periodic
+  checkpoints, making those checkpoints self-contained.
+- The generic model registry and configuration structure are preserved because
+  the training entry point uses their registration side effects.
+- W&B remains a base dependency because the unchanged upstream training module
+  imports it at module load time, even when logging is disabled.
+
+FlashAttention and DeepSpeed are exposed as optional dependency groups because
+they improve or enable particular training configurations but are not required
+to import the package or use the single-GPU SDPA path.
+
+## Compatibility contract
+
+The extraction preserves the `gr00t` Python namespace and the original class
+and module locations. This is important for Hugging Face registration and
+checkpoint compatibility.
+
+A usable periodic checkpoint must continue to contain model weights and config
+along with:
+
+- `processor_config.json`
+- `statistics.json`
+- `embodiment_id.json`
+- `experiment_cfg/`
+
+Removing or reconstructing those artifacts would risk changing normalization,
+modality interpretation, or embodiment routing during later inference.
+
+## Validation performed
+
+At extraction time:
+
+- All copied implementation and example files matched the upstream files
+  byte-for-byte.
+- The fine-tuning CLI imported and rendered its help output.
+- The dependency lockfile resolved successfully.
+- A source distribution and wheel built successfully, including the DeepSpeed
+  JSON resources.
+- 86 focused tests passed, covering configuration safety, batch-size and
+  resume invariants, dataset construction, embodiment mappings, action-horizon
+  validation, gated-backbone errors, initial-action serialization, and the
+  extraction boundary.
+
+An actual model download and GPU fine-tuning run were not performed as part of
+the extraction. That remains the final hardware-level acceptance test.
+
+## Adding capabilities later
+
+Inference, evaluation, or simulator support should be added as separate,
+optional layers. Each addition should begin from its upstream entry point,
+follow the same dependency-closure process, and add parity tests before any
+cleanup or refactoring. This keeps the fine-tuning core small while retaining a
+clear route to expand it safely.
+

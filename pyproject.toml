@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=67", "wheel", "pip"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minimal-groot"
+version = "0.1.0"
+description = "Minimal GR00T N1.7 fine-tuning package"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "ATTRIBUTIONS.md"]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "accelerate==1.13.0",
+    "albumentations==1.4.18",
+    "diffusers==0.35.1",
+    "dm-tree",
+    "huggingface-hub[cli]",
+    "numpy==1.26.4",
+    "omegaconf==2.3.0",
+    "opencv-python-headless>=4.5,<4.13",
+    "pandas==2.2.3",
+    "pillow>=10",
+    "pyyaml>=6",
+    "scipy==1.15.3",
+    "torch==2.9.0",
+    "torchcodec==0.8.0; platform_machine == 'x86_64'",
+    "torchvision==0.24.0",
+    "tqdm>=4.66",
+    "transformers==4.57.3",
+    "tyro==0.9.17",
+    # experiment.py imports wandb at module import time even when logging is disabled.
+    "wandb==0.23.0",
+]
+
+[project.optional-dependencies]
+distributed = [
+    "deepspeed==0.17.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+performance = [
+    "flash-attn==2.8.3; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+dev = [
+    "build",
+    "pre-commit",
+    "pytest",
+    "pytest-timeout",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gr00t*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"gr00t.configs" = ["deepspeed/*.json"]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+flash-attn = [
+    { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch==2.9.0", "numpy==1.26.4"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "--import-mode=importlib"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["tests"]
+# Upstream implementation and regression tests are retained byte-for-byte.
+# Lint extraction-owned files without silently rewriting that snapshot.
+extend-exclude = ["examples", "gr00t", "tests/gr00t"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
