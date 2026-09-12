@@ -1,8 +1,8 @@
 # Minimal GR00T N1.7
 
-This is a fine-tuning-only extraction of NVIDIA Isaac GR00T N1.7. The GR00T
-source files were copied without rewriting their model, processor, dataset,
-training, distributed-training, or checkpoint behavior.
+This is a focused extraction of NVIDIA Isaac GR00T N1.7 for fine-tuning and
+LIBERO evaluation. The GR00T source files were copied without rewriting their
+model, processor, dataset, training, inference, or rollout behavior.
 
 See [EXTRACTION_RATIONALE.md](EXTRACTION_RATIONALE.md) for how the extraction
 boundary was selected, why each major subsystem remains, and what was excluded.
@@ -16,13 +16,14 @@ boundary was selected, why each major subsystem remains, and what was excluded.
 - Single-GPU, DDP, and DeepSpeed training paths
 - Standalone Hugging Face checkpoint creation
 - The custom-embodiment modality configuration example
+- Local and ZMQ-served policy inference
+- Open-loop evaluation
+- Shared closed-loop rollout and video wrappers
+- LIBERO simulation evaluation
 
 ## Excluded
 
-- Inference policies and policy server/client
-- ZMQ, msgpack, and network serving
-- Offline open-loop evaluation and plotting
-- Simulator and real-robot evaluation
+- SimplerEnv, RoboCasa, and real-robot evaluation
 - TensorRT and ONNX deployment
 - Platform Dockerfiles and installation scripts
 - Dataset conversion and repair utilities
@@ -59,6 +60,13 @@ Development tools are available with:
 
 ```bash
 uv sync --extra dev
+```
+
+Policy inference and evaluation dependencies are optional so training-only
+installs remain small:
+
+```bash
+uv sync --extra eval
 ```
 
 ## Fine-tune
@@ -117,8 +125,74 @@ weights and Hugging Face configuration, the training callback copies:
 Do not discard these files; they are required to interpret model inputs and
 decode normalized actions later.
 
+## LIBERO simulation evaluation
+
+LIBERO runs in a dedicated virtual environment because its Gymnasium, MuJoCo,
+robosuite, and NumPy requirements differ from the model environment. Set it up
+once from the repository root. On a fresh Ubuntu host, install the shared EGL
+libraries first:
+
+```bash
+sudo apt update
+sudo apt install libegl1-mesa-dev libglu1-mesa
+```
+
+Then create the LIBERO environment:
+
+```bash
+bash gr00t/eval/sim/LIBERO/setup_libero.sh
+```
+
+The setup script clones the upstream-pinned LIBERO commit into
+`external_dependencies/LIBERO`, creates
+`gr00t/eval/sim/LIBERO/libero_uv/.venv`, and performs a headless environment
+smoke test. It leaves an existing LIBERO checkout untouched and fails if that
+checkout is on a different commit.
+
+The published checkpoint is stored in a nested Hugging Face repository folder,
+so download that folder into a local checkpoint directory:
+
+```bash
+uv run hf download nvidia/GR00T-N1.7-LIBERO \
+    --include "libero_10/config.json" \
+              "libero_10/embodiment_id.json" \
+              "libero_10/model-*.safetensors" \
+              "libero_10/model.safetensors.index.json" \
+              "libero_10/processor_config.json" \
+              "libero_10/statistics.json" \
+    --local-dir checkpoints/GR00T-N1.7-LIBERO
+```
+
+Start the policy server in the primary project environment:
+
+```bash
+uv run --extra eval python gr00t/eval/run_gr00t_server.py \
+    --model-path checkpoints/GR00T-N1.7-LIBERO/libero_10 \
+    --embodiment-tag LIBERO_PANDA \
+    --use-sim-policy-wrapper
+```
+
+Then start a short rollout in a second terminal using the LIBERO environment:
+
+```bash
+gr00t/eval/sim/LIBERO/libero_uv/.venv/bin/python \
+    gr00t/eval/rollout_policy.py \
+    --n-episodes 1 \
+    --policy-client-host 127.0.0.1 \
+    --policy-client-port 5555 \
+    --max-episode-steps 40 \
+    --env-name libero_sim/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it \
+    --n-action-steps 8 \
+    --n-envs 1
+```
+
+For a benchmark-length evaluation, use `--max-episode-steps 720` and increase
+the episode and environment counts. The checkpoint must be LIBERO-finetuned
+and contain `embodiment_id.json`, `processor_config.json`, and
+`statistics.json`; the generic SO100 or base checkpoint is not a substitute.
+
 ## Scope note
 
-This extraction intentionally does not provide evaluation or inference entry
-points. Those can be added later as a separate package without changing the
-fine-tuning core.
+This extraction intentionally includes only LIBERO simulation support. Other
+simulators can be added later as separate adapters without changing the
+fine-tuning, policy, or shared rollout layers.

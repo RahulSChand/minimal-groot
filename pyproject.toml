@@ -35,6 +35,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+eval = [
+    "gymnasium==1.2.2",
+    "matplotlib==3.10.1",
+    "msgpack==1.1.0",
+    "msgpack-numpy==0.4.8",
+    "pyzmq==27.0.1",
+]
 distributed = [
     "deepspeed==0.17.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
@@ -56,6 +63,7 @@ namespaces = true
 
 [tool.setuptools.package-data]
 "gr00t.configs" = ["deepspeed/*.json"]
+"gr00t.eval.sim.LIBERO" = ["*.sh"]
 
 [tool.uv]
 required-environments = [

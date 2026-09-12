@@ -8,4 +8,6 @@ dist/
 *.egg-info/
 outputs/
 wandb/
-
+checkpoints/
+external_dependencies/
+gr00t/eval/sim/LIBERO/libero_uv/

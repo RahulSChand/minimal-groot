@@ -2,10 +2,10 @@
 
 ## Goal
 
-`minimal-groot` is a fine-tuning-only extraction of Isaac GR00T N1.7. Its goal
-is to preserve the existing, tested training behavior without carrying the
-simulation, deployment, evaluation, and real-robot infrastructure from the
-upstream repository.
+`minimal-groot` is a focused fine-tuning and LIBERO-evaluation extraction of
+Isaac GR00T N1.7. Its goal is to preserve the existing, tested training and
+evaluation behavior without carrying every simulator, deployment target, and
+real-robot integration from the upstream repository.
 
 This is deliberately an extraction rather than a rewrite. GR00T fine-tuning
 depends on details that are easy to miss when recreating the pipeline: modality
@@ -17,14 +17,14 @@ edge-case handling.
 
 ## How the boundary was chosen
 
-The extraction starts at the supported fine-tuning entry point:
-`gr00t/experiment/launch_finetune.py`. We followed its static imports, runtime
-imports, model-registration side effects, and file resources until the
-dependency graph closed. The resulting subset was then checked by importing
-the entry point in a clean environment, building a wheel, and running focused
-upstream regression tests.
+The training extraction starts at `gr00t/experiment/launch_finetune.py`. The
+evaluation extension starts at `gr00t/eval/run_gr00t_server.py` and
+`gr00t/eval/rollout_policy.py`, then follows their policy, transport, temporal
+horizon, wrapper, and LIBERO-adapter dependencies. Simulator packages remain
+outside the project environment and are installed into a benchmark-specific
+virtual environment.
 
-The copied implementation is organized into five responsibilities:
+The copied implementation is organized into seven responsibilities:
 
 - **Configuration** defines the N1.7 model, datasets, training arguments,
   embodiment modalities, and DeepSpeed settings. These files also validate
@@ -43,6 +43,11 @@ The copied implementation is organized into five responsibilities:
 - **Small utilities** provide distributed rank coordination, safe serialization
   of initial actions, and TorchCodec-backed video access used by the dataset
   loader.
+- **Policy inference** loads a checkpoint and processor, validates model-facing
+  observations, and decodes normalized predictions into physical actions.
+- **Evaluation and simulation** provide ZMQ policy serving, open-loop metrics,
+  temporal observation/action horizon handling, closed-loop rollout, video
+  recording, and a Gymnasium adapter for LIBERO.
 
 The shell launcher and one custom-embodiment modality example are included so
 the extracted pipeline has a concrete invocation and configuration template.
@@ -53,11 +58,10 @@ License and attribution files remain with the copied source.
 The following concerns are outside the current goal and were therefore not
 included:
 
-- Local or remote inference policy APIs
-- ZMQ policy serving, clients, replay policies, and their serialization stack
-- Offline open-loop metrics and plotting
-- Closed-loop simulator and real-robot evaluation
-- LIBERO, SimplerEnv, and RoboCasa repositories
+- SimplerEnv, RoboCasa, RoboCasa365, and GR1 simulator integrations
+- Real-robot evaluation
+- Vendored simulator repositories and assets; LIBERO is fetched on demand at a
+  pinned commit into an ignored external-dependency directory
 - ONNX export, TensorRT engines, and inference benchmarks
 - Jetson, Spark, and dGPU deployment containers and installation scripts
 - Dataset conversion, repair, download, and platform activation utilities
@@ -85,7 +89,8 @@ Some code is retained even when it is not exercised by every run:
 
 FlashAttention and DeepSpeed are exposed as optional dependency groups because
 they improve or enable particular training configurations but are not required
-to import the package or use the single-GPU SDPA path.
+to import the package or use the single-GPU SDPA path. Gymnasium, plotting, and
+ZMQ serialization packages are similarly grouped under the `eval` extra.
 
 ## Compatibility contract
 
@@ -106,7 +111,7 @@ modality interpretation, or embodiment routing during later inference.
 
 ## Validation performed
 
-At extraction time:
+The training extraction was validated with:
 
 - All copied implementation and example files matched the upstream files
   byte-for-byte.
@@ -114,19 +119,27 @@ At extraction time:
 - The dependency lockfile resolved successfully.
 - A source distribution and wheel built successfully, including the DeepSpeed
   JSON resources.
-- 86 focused tests passed, covering configuration safety, batch-size and
-  resume invariants, dataset construction, embodiment mappings, action-horizon
-  validation, gated-backbone errors, initial-action serialization, and the
-  extraction boundary.
+- 183 tests passed (with one optional test skipped), covering configuration
+  safety, batch-size and resume invariants, dataset construction, policy
+  transport, embodiment mappings, action-horizon validation, rollout wrappers,
+  gated-backbone errors, initial-action serialization, and the extraction
+  boundary.
+- A three-step GPU fine-tuning smoke run and a parity comparison with the full
+  Isaac-GR00T checkout.
 
-An actual model download and GPU fine-tuning run were not performed as part of
-the extraction. That remains the final hardware-level acceptance test.
+The evaluation extension retains the upstream Python implementation
+byte-for-byte and adds its focused transport, horizon, wrapper, and rollout
+tests. The LIBERO setup script has two extraction-owned safety changes: it
+clones only the pinned LIBERO repository rather than relying on the full
+upstream submodule tree, and it does not delete an existing `~/.libero`
+configuration. A model-in-the-loop rollout with the LIBERO Spatial checkpoint
+completed successfully, and the same task and seed also succeeded through the
+full Isaac-GR00T source tree.
 
 ## Adding capabilities later
 
-Inference, evaluation, or simulator support should be added as separate,
-optional layers. Each addition should begin from its upstream entry point,
+Additional simulator support should be added as a separate adapter and
+dependency island. Each addition should begin from its upstream entry point,
 follow the same dependency-closure process, and add parity tests before any
-cleanup or refactoring. This keeps the fine-tuning core small while retaining a
-clear route to expand it safely.
-
+cleanup or refactoring. The shared policy and rollout layers should not be
+reimplemented per simulator.
