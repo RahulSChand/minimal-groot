@@ -10,6 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "ATTRIBUTIONS.md"]
 requires-python = ">=3.12,<3.13"
+
 dependencies = [
     "accelerate==1.13.0",
     "albumentations==1.4.18",
@@ -48,13 +49,7 @@ distributed = [
 performance = [
     "flash-attn==2.8.3; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
-dev = [
-    "build",
-    "pre-commit",
-    "pytest",
-    "pytest-timeout",
-    "ruff",
-]
+dev = ["build", "pre-commit", "pytest", "pytest-timeout", "ruff"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -71,12 +66,8 @@ required-environments = [
 ]
 
 [tool.uv.sources]
-torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
-]
-torchvision = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
-]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
 flash-attn = [
     { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
 ]
