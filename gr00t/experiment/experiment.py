@@ -295,6 +295,7 @@ def run(config: Config):
         eval_dataset=eval_dataset,
         data_collator=data_collator,
         multiprocessing_context=config.data.multiprocessing_context,
+        weight_decay_all_parameters=config.training.weight_decay_all_parameters,
     )
 
     trainer.add_callback(
@@ -350,7 +351,8 @@ def run(config: Config):
         trainer.train(resume_from_checkpoint=config.training.resume_from_checkpoint)
 
     # Save final model
-    trainer.save_model()
+    if config.training.save_final_model:
+        trainer.save_model()
     logging.info(f"Model saved to {output_dir}")
 
     if config.training.assert_loss_less_than is not None:

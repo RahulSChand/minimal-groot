@@ -161,8 +161,22 @@ class Gr00tTrainer(Trainer):
             *args: Positional arguments forwarded to ``Trainer``.
         """
         self.action_offset = kwargs.pop("action_offset", None)
+        self.weight_decay_all_parameters = kwargs.pop("weight_decay_all_parameters", False)
         self.multiprocessing_context = kwargs.pop("multiprocessing_context", "fork")
         super().__init__(*args, **kwargs)
+
+    def create_optimizer(self):
+        if self.weight_decay_all_parameters and self.optimizer is None:
+            if self.args.optim != "adamw_torch":
+                raise ValueError("weight_decay_all_parameters requires adamw_torch")
+            self.optimizer = torch.optim.AdamW(
+                [p for p in self.model.parameters() if p.requires_grad],
+                lr=self.args.learning_rate,
+                betas=(self.args.adam_beta1, self.args.adam_beta2),
+                eps=self.args.adam_epsilon,
+                weight_decay=self.args.weight_decay,
+            )
+        return super().create_optimizer()
 
     def log(self, logs: dict[str, float], start_time: float | None = None) -> None:
         # Hide epoch from logged metrics as it's misleading for Iterable datasets.

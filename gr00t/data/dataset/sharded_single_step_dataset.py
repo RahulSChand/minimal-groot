@@ -224,6 +224,8 @@ class ShardedSingleStepDataset(ShardedDataset):
     def get_effective_episode_length(self, episode_index: int) -> int:
         """Get the effective episode length accounting for action horizon."""
         original_length = self.episode_loader.get_episode_length(episode_index)
+        if self.allow_padding:
+            return original_length
         return max(0, original_length - self.action_horizon + 1)
 
     def __len__(self):

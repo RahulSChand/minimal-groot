@@ -46,6 +46,19 @@ class FinetuneConfig:
     """
 
     # --- Model Tuning Flags ---
+    model_version: str = "auto"
+    """auto (read checkpoint config), N1, N1.5, N1.6, or N1.7."""
+
+    seed: int = 42
+    lr_scheduler_type: str = "cosine"
+    max_grad_norm: float = 1.0
+    gradient_checkpointing: bool = False
+    logging_steps: int = 10
+    weight_decay_all_parameters: bool = False
+    """Apply AdamW weight decay to biases and norms too, matching post_train_vla."""
+    allow_padding: bool = False
+    """Include episode-end frames, repeating the final action to fill the chunk."""
+
     tune_llm: bool = False
     """If True, fine-tune the language model (LLM) backbone during training."""
 
@@ -58,9 +71,10 @@ class FinetuneConfig:
     tune_diffusion_model: bool = True
     """If True, fine-tune the diffusion-based action decoder (if present in the model)."""
 
-    state_dropout_prob: float = 0.2
+    state_dropout_prob: float | None = None
     """
-    Dropout probability applied to state inputs for regularization during training.
+    State dropout probability. Defaults to 0.2 for N1.7 and zero for N1/N1.5/N1.6.
+    N1/N1.5 do not have learned state-dropout masks and only support zero.
     """
 
     # --- Data Augmentation ---
@@ -184,6 +198,9 @@ class FinetuneConfig:
 
     save_only_model: bool = False
     """If True, save only model weights (skip optimizer/scheduler/RNG states). Cannot resume training from these checkpoints."""
+
+    save_final_model: bool = True
+    """Also write final weights at the output root, in addition to checkpoint-N."""
 
     resume_from_checkpoint: bool = False
     """If True, resume from the latest ``checkpoint-*`` in ``output_dir``. Default

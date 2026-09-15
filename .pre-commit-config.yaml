@@ -4,6 +4,8 @@ repos:
     hooks:
       # Basic safety checks
       - id: check-added-large-files
+        # Required tokenizer vocabularies and BPE merge tables are source assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)(?:vocab\.json|merges\.txt)$'
       - id: check-ast
       - id: check-builtin-literals
       - id: check-case-conflict
@@ -14,6 +16,8 @@ repos:
       - id: check-symlinks
       - id: check-toml
       - id: check-vcs-permalinks
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
       - id: check-xml
       - id: check-yaml
         args: ["--allow-multiple-documents"]
@@ -22,9 +26,13 @@ repos:
 
       # Simple auto-fixers
       - id: end-of-file-fixer
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
       - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: pretty-format-json
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
         args: ["--autofix"]
       - id: requirements-txt-fixer
       - id: sort-simple-yaml
@@ -43,6 +51,8 @@ repos:
     rev: "v2.3.1"
     hooks:
       - id: autoflake
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
         args:
           [
             "--in-place",
@@ -55,6 +65,8 @@ repos:
     rev: "v3.21.2"
     hooks:
       - id: pyupgrade
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
         args: ["--py310-plus", "--keep-runtime-typing"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -62,9 +74,13 @@ repos:
     hooks:
       # Formatter first so code is canonicalized
       - id: ruff-format
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
         args: ["--config", "ruff.toml"]
       # Then linting + autofixes
       - id: ruff
+        # Preserve pinned third-party Eagle code and tokenizer assets.
+        exclude: '^gr00t/model/(gr00t_n1(?:d5)?/backbone/eagle2_hg_model/|gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2/)'
         args:
           [
             "--output-format=full",

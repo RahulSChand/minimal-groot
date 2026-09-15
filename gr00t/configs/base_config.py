@@ -121,7 +121,13 @@ class Config:
 
     def load_dict(self, data: dict):
         if "model" in data:
-            self.model = self.model.__class__(**data["model"])
+            from .model import MODEL_CONFIG_TYPES
+
+            model_type = data["model"].get("model_type", self.model.model_type)
+            model_classes = {cls.model_type: cls for cls in MODEL_CONFIG_TYPES.values()}
+            if model_type not in model_classes:
+                raise ValueError(f"Unsupported model_type in experiment config: {model_type!r}")
+            self.model = model_classes[model_type](**data["model"])
         if "data" in data:
             self.data = DataConfig(**data["data"])
             # Ensure nested datasets are converted to dataclass instances

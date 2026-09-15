@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "minimal-groot"
 version = "0.1.0"
-description = "Minimal GR00T N1.7 fine-tuning package"
+description = "Minimal GR00T N1, N1.5, N1.6 and N1.7 fine-tuning package"
 requires-python = ">=3.12,<3.13"
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,6 +14,12 @@ license-files = ["LICENSE", "ATTRIBUTIONS.md"]
 dependencies = [
     "accelerate==1.13.0",
     "albumentations==1.4.18",
+    "av>=14,<17",
+    "decord==0.6.0; platform_machine == 'x86_64'",
+    "einops>=0.8",
+    "lmdb>=1.7",
+    "peft>=0.17,<0.19",
+    "timm>=1.0,<1.1",
     "diffusers==0.35.1",
     "dm-tree",
     "huggingface-hub[cli]",
@@ -42,6 +48,8 @@ eval = [
     "msgpack==1.1.0",
     "msgpack-numpy==0.4.8",
     "pyzmq==27.0.1",
+    "websockets>=14,<16",
+    "imageio[ffmpeg]>=2.34",
 ]
 distributed = [
     "deepspeed==0.17.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -51,7 +59,7 @@ performance = [
 ]
 
 [dependency-groups]
-dev = ["ipykernel", "ipywidgets", "pre-commit"]
+dev = ["build", "ipykernel", "ipywidgets", "pre-commit", "pytest", "pytest-timeout", "ruff"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -60,6 +68,18 @@ namespaces = true
 
 [tool.setuptools.package-data]
 "gr00t.configs" = ["deepspeed/*.json"]
+"gr00t.model.gr00t_n1" = [
+    "backbone/eagle2_hg_model/*.json",
+    "backbone/eagle2_hg_model/*.txt",
+]
+"gr00t.model.gr00t_n1d5" = [
+    "backbone/eagle2_hg_model/*.json",
+    "backbone/eagle2_hg_model/*.txt",
+]
+"gr00t.model.gr00t_n1d6" = [
+    "modules/nvidia/Eagle-Block2A-2B-v2/*.json",
+    "modules/nvidia/Eagle-Block2A-2B-v2/*.txt",
+]
 "gr00t.eval.sim.LIBERO" = ["*.sh"]
 
 [tool.uv]
@@ -85,21 +105,3 @@ explicit = true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = "--import-mode=importlib"
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-src = ["tests"]
-# Upstream implementation and regression tests are retained byte-for-byte.
-# Lint extraction-owned files without silently rewriting that snapshot.
-extend-exclude = ["examples", "gr00t", "tests/gr00t"]
-
-[tool.ruff.format]
-quote-style = "double"
-
-[tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = ["E501"]
-
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]

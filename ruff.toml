@@ -1,4 +1,8 @@
 extend-exclude = [
+  # Pinned third-party Eagle snapshots; safety hooks still validate their syntax.
+  "gr00t/model/gr00t_n1/backbone/eagle2_hg_model",
+  "gr00t/model/gr00t_n1d5/backbone/eagle2_hg_model",
+  "gr00t/model/gr00t_n1d6/modules/nvidia/Eagle-Block2A-2B-v2",
   "__pycache__",
   "docs",
   "site",

@@ -32,6 +32,7 @@ providing episode-level data access with support for multi-modal data including:
 Returns messages with VLAStepData as defined in types.py.
 """
 
+import io
 import json
 import logging
 import random
@@ -41,6 +42,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from PIL import Image
 
 from gr00t.data.types import ModalityConfig
 from gr00t.utils.initial_actions import INITIAL_ACTIONS_FILENAME, load_initial_actions
@@ -384,7 +386,31 @@ class LeRobotEpisodeLoader:
             for joint_group in joint_groups_df.columns:
                 loaded_df[f"{modality_type}.{joint_group}"] = joint_groups_df[joint_group]
 
+        # LeRobot image features can be embedded in parquet, without MP4 files.
+        if "video" in self.modality_configs:
+            for key in self.modality_configs["video"].modality_keys:
+                meta_key = self._video_key_mapping.get(key, key)
+                original_key = self.modality_meta["video"][meta_key].get(
+                    "original_key", f"observation.images.{meta_key}"
+                )
+                if self.feature_config.get(original_key, {}).get("dtype") == "image":
+                    loaded_df[f"video.{key}"] = original_df[original_key].map(self._decode_image)
+
         return loaded_df
+
+    def _decode_image(self, value) -> np.ndarray:
+        if isinstance(value, dict):
+            if value.get("bytes") is not None:
+                source = io.BytesIO(value["bytes"])
+            elif value.get("path"):
+                source = self.dataset_path / value["path"]
+            else:
+                raise ValueError("LeRobot image has neither bytes nor a path")
+            with Image.open(source) as image:
+                return np.asarray(image.convert("RGB"))
+        if isinstance(value, Image.Image):
+            return np.asarray(value.convert("RGB"))
+        raise TypeError(f"Unsupported LeRobot image: {type(value)}")
 
     def _load_video_data(self, episode_index: int, indices: np.ndarray) -> dict[str, np.ndarray]:
         """
@@ -413,6 +439,8 @@ class LeRobotEpisodeLoader:
             # Use the video key mapping if the config key differs from the dataset meta key.
             meta_key = self._video_key_mapping.get(image_key, image_key)
             original_key = self.modality_meta["video"][meta_key].get("original_key", f"observation.images.{meta_key}")
+            if self.feature_config.get(original_key, {}).get("dtype") == "image":
+                continue
             assert original_key in self.feature_config, f"Original key {original_key} not found in feature config"
 
             # Construct video file path using pattern

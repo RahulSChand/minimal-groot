@@ -13,3 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .gr00t_n1d7.setup import Gr00tN1d7Pipeline
+from .legacy_setup import Gr00tN1d5Pipeline, Gr00tN1d6Pipeline, Gr00tN1Pipeline
+from .registry import MODEL_REGISTRY
+
+__all__ = ["MODEL_REGISTRY", "Gr00tN1Pipeline", "Gr00tN1d5Pipeline", "Gr00tN1d6Pipeline", "Gr00tN1d7Pipeline"]

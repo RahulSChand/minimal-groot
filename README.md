@@ -1,15 +1,16 @@
-# Minimal GR00T N1.7
+# Minimal GR00T N1, N1.5, N1.6, and N1.7
 
-This is a focused extraction of NVIDIA Isaac GR00T N1.7 for fine-tuning and
-LIBERO evaluation. The GR00T source files were copied without rewriting their
-model, processor, dataset, training, inference, or rollout behavior.
+This is a focused extraction of NVIDIA Isaac GR00T for fine-tuning and
+LIBERO evaluation. The launcher detects N1, N1.5, N1.6, or N1.7 from a local or
+Hugging Face checkpoint's `config.json`. Each version retains its own model
+architecture and vision/language processor.
 
 See [EXTRACTION_RATIONALE.md](EXTRACTION_RATIONALE.md) for how the extraction
 boundary was selected, why each major subsystem remains, and what was excluded.
 
 ## Included
 
-- GR00T N1.7 model and Qwen3-VL backbone integration
+- GR00T N1, N1.5, and N1.6 with their native Eagle backbones, and N1.7 with Qwen3-VL
 - LeRobot dataset loading and video decoding
 - State/action processing and normalization
 - Single- and multi-dataset fine-tuning
@@ -34,7 +35,8 @@ boundary was selected, why each major subsystem remains, and what was excluded.
 - Linux x86_64
 - A CUDA environment compatible with PyTorch 2.9 / CUDA 12.8
 - FFmpeg 4 through 7 for TorchCodec 0.8
-- Access to the gated `nvidia/Cosmos-Reason2-2B` Hugging Face model
+- For N1.7, access to the gated `nvidia/Cosmos-Reason2-2B` Hugging Face model
+- For N1/N1.5/N1.6, install `--extra performance` for their Flash Attention backbones
 
 Authenticate before loading a GR00T checkpoint:
 
@@ -94,6 +96,88 @@ USE_WANDB=0 CUDA_VISIBLE_DEVICES=0 uv run bash examples/finetune.sh \
 
 For multiple GPUs, install the `distributed` extra and launch with `torchrun`,
 or set `NUM_GPUS` when using `examples/finetune.sh`.
+
+Use `nvidia/GR00T-N1-2B`, `nvidia/GR00T-N1.5-3B`, or `nvidia/GR00T-N1.6-3B`
+as `--base-model-path` to train the older models. `--model-version N1` (or N1.5/N1.6/N1.7) optionally
+checks that the supplied checkpoint matches your intended version. The loader
+checks for missing, unexpected, or mismatched weights before training.
+
+### LIBERO Spatial trajectory subsets
+
+Run independent full-model fine-tunes on 5, 10, 15, 25, and 50 trajectories:
+
+```bash
+uv sync --extra performance --extra eval
+bash examples/LIBERO/setup_reference_eval.sh
+bash examples/LIBERO/sample_efficiency.sh 1.5
+```
+
+To run all 20 experiments sequentially on one GPU:
+
+```bash
+for version in 1 1.5 1.6 1.7; do
+  bash examples/LIBERO/sample_efficiency.sh "$version"
+done
+```
+
+The launcher uses `/root/libero_spatial_post` and the policy-agnostic evaluator
+in `/root/post_train_vla`. Set `BASE_MODEL_PATH`, `DATASET_ROOT`, `OUTPUT_DIR`,
+`REFERENCE_PROJECT`, or `EVAL_PYTHON` to override those locations. Pass `1`, `1.6`, or
+`1.7` to select another generation. Weights can be a local directory or the
+corresponding `nvidia/GR00T-N1-2B` or `nvidia/GR00T-N1.x-3B` Hugging Face repository.
+
+The defaults follow `post_train_vla/scripts/run_sample_efficiency.sh` and its
+trainer: seed 42, globally sampled nested trajectory subsets, microbatch 8,
+accumulation 6 (effective batch 48), full-model AdamW, constant learning rate
+`5e-5`, weight decay `0.01` on all parameters, betas `(0.9, 0.999)`, epsilon
+`1e-8`, and gradient clipping at `1.0`. BF16 autocast is used with state dropout
+disabled. Each epoch visits every selected frame exactly once, including short
+final batches; action chunks repeat the final frame within each episode.
+Every budget starts again from the base checkpoint.
+
+Each epoch is evaluated on LIBERO Spatial task 0, initial states 0–19, seed 7,
+with 20 simulator workers, inference batches up to 8, five-step replanning,
+ten settling steps, and a 220-step limit. Training stops after at least three
+epochs when two consecutive epochs fail to improve the best success count,
+with a limit of 15 epochs. These executable defaults supersede the older
+3-patience/20-epoch prose in the reference README.
+
+GR00T retains its own image processing, action normalization, and native action
+horizons (N1/N1.5: 16, N1.6: 50, N1.7: 40, read from the checkpoint). N1 also
+retains its native 16 diffusion inference steps. The evaluator
+sends 256px source images for GR00T to resize. Actions already use LIBERO delta
+commands and receive no extra state subtraction or gripper inversion. Shared
+dataset normalization statistics remain fixed across budgets. N1 and N1.5 use the
+new-embodiment projector at index 31; N1.6 and N1.7 use their LIBERO projector
+at index 2.
+
+The reference simulator environment must be available through `EVAL_PYTHON`.
+The setup script pins LIBERO/MuJoCo/robosuite and shares PyTorch with the
+model environment. The existing `setup_libero.sh` provides a separate,
+standalone environment for the general GR00T evaluator.
+The live training model serves evaluation, avoiding a second GPU model copy.
+
+```bash
+# Write/validate the exact manifest and run plan without training:
+bash examples/LIBERO/sample_efficiency.sh 1.5 --prepare-only
+
+# Standard fine-tuning remains available independently of the reference project:
+uv run --extra performance python gr00t/experiment/launch_finetune.py \
+  --base-model-path nvidia/GR00T-N1.5-3B \
+  --dataset-path /root/libero_spatial_post --embodiment-tag LIBERO_PANDA \
+  --modality-config-path examples/LIBERO/libero_spatial_config.py \
+  --output-dir outputs/n15-custom
+```
+
+Each run records the shared manifest, selected episode IDs, effective
+hyperparameters, per-epoch training losses and simulation outcomes. The best
+epoch checkpoint contains weights, model config, processor, normalization
+statistics, and embodiment IDs. Metrics for every epoch are retained. Use
+`--checkpoint-retention best-and-last` to also keep the final epoch weights.
+Checkpoints stay local and omit optimizer state; restart an
+interrupted budget from base weights in a new output directory. Rerunning an
+unchanged completed plan skips completed budgets. The standard fine-tuning
+launcher continues to support resumable optimizer checkpoints.
 
 ## Dataset contract
 

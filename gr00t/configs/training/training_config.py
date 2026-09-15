@@ -44,6 +44,7 @@ class TrainingConfig:
     learning_rate: float = 1e-4
     lr_scheduler_type: str = "cosine"
     weight_decay: float = 1e-5
+    weight_decay_all_parameters: bool = False
     warmup_ratio: float = 0.05
     warmup_steps: int = 0  # this will override warmup_ratio
     max_grad_norm: float = 1.0
@@ -70,6 +71,7 @@ class TrainingConfig:
     # Model saving
     save_vl_model: bool = False  # Control whether to save VL model and processor in callbacks
     save_only_model: bool = False  # Skip optimizer/scheduler/RNG states — cannot resume training
+    save_final_model: bool = True
 
     # Default False so a rerun against an existing output_dir starts fresh.
     resume_from_checkpoint: bool = False

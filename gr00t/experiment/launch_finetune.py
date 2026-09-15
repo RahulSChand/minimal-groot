@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Launch finetuning for N1.7 on "single node".
+# Launch fine-tuning for N1, N1.5, N1.6, or N1.7 on a single node.
 # This script tries to provide a similar user experience as current OSS.
 
 import json
@@ -25,6 +25,37 @@ import tyro
 from gr00t.configs.base_config import get_default_config
 from gr00t.configs.finetune_config import FinetuneConfig
 from gr00t.experiment.experiment import run
+
+
+def select_model_config(base_model_path: str, model_version: str = "auto"):
+    """Select a pipeline by checkpoint metadata, including local checkpoints."""
+    from huggingface_hub import hf_hub_download
+
+    from gr00t.configs.model.gr00t_n1d7 import Gr00tN1d7Config
+    from gr00t.configs.model.legacy import (
+        Gr00tN1d5FinetuneConfig,
+        Gr00tN1d6FinetuneConfig,
+        Gr00tN1FinetuneConfig,
+    )
+
+    path = Path(base_model_path) / "config.json"
+    if not path.is_file():
+        path = Path(hf_hub_download(base_model_path, "config.json"))
+    metadata = json.loads(path.read_text())
+    versions = {
+        "gr00t_n1": ("1", Gr00tN1FinetuneConfig),
+        "gr00t_n1_5": ("1.5", Gr00tN1d5FinetuneConfig),
+        "Gr00tN1d6": ("1.6", Gr00tN1d6FinetuneConfig),
+        "Gr00tN1d7": ("1.7", Gr00tN1d7Config),
+    }
+    model_type = metadata.get("model_type")
+    if model_type not in versions:
+        raise ValueError(f"Unsupported checkpoint model_type: {model_type!r}")
+    version, config_class = versions[model_type]
+    requested = model_version.lower().removeprefix("n")
+    if requested not in ("auto", version):
+        raise ValueError(f"Requested {model_version}, but checkpoint is GR00T N{version}")
+    return config_class()
 
 
 # Make sure the user provided modality config is registered.
@@ -73,13 +104,20 @@ if __name__ == "__main__":
         }
     )
     config.load_config_path = None
+    config.model = select_model_config(ft_config.base_model_path, ft_config.model_version)
 
     # overwrite with finetune config supplied by the user
     config.model.tune_llm = ft_config.tune_llm
     config.model.tune_visual = ft_config.tune_visual
     config.model.tune_projector = ft_config.tune_projector
     config.model.tune_diffusion_model = ft_config.tune_diffusion_model
-    config.model.state_dropout_prob = ft_config.state_dropout_prob
+    config.model.state_dropout_prob = (
+        ft_config.state_dropout_prob
+        if ft_config.state_dropout_prob is not None
+        else (0.2 if config.model.model_type == "Gr00tN1d7" else 0.0)
+    )
+    if config.model.model_type in ("gr00t_n1", "gr00t_n1_5") and config.model.state_dropout_prob != 0:
+        raise ValueError("N1/N1.5 do not support state dropout; use --state-dropout-prob 0")
     config.model.random_rotation_angle = ft_config.random_rotation_angle
     config.model.color_jitter_params = ft_config.color_jitter_params
     config.model.use_percentiles = ft_config.use_percentiles
@@ -95,11 +133,11 @@ if __name__ == "__main__":
     else:
         config.model.extra_augmentation_config = None
 
-    config.model.load_bf16 = False
-    config.model.reproject_vision = False
-    config.model.model_name = "nvidia/Cosmos-Reason2-2B"
-    config.model.backbone_trainable_params_fp32 = True
-    config.model.use_relative_action = True
+    if config.model.model_type == "Gr00tN1d7":
+        config.model.load_bf16 = False
+        config.model.reproject_vision = False
+        config.model.backbone_trainable_params_fp32 = True
+        config.model.use_relative_action = True
 
     config.training.experiment_name = ft_config.experiment_name
     config.training.start_from_checkpoint = ft_config.base_model_path
@@ -115,8 +153,15 @@ if __name__ == "__main__":
     config.training.use_wandb = ft_config.use_wandb
     config.training.max_steps = ft_config.max_steps
     config.training.weight_decay = ft_config.weight_decay
+    config.training.weight_decay_all_parameters = ft_config.weight_decay_all_parameters
     config.training.warmup_ratio = ft_config.warmup_ratio
     config.training.wandb_project = ft_config.wandb_project
+    config.training.lr_scheduler_type = ft_config.lr_scheduler_type
+    config.training.max_grad_norm = ft_config.max_grad_norm
+    config.training.gradient_checkpointing = ft_config.gradient_checkpointing
+    config.training.logging_steps = ft_config.logging_steps
+    config.data.seed = ft_config.seed
+    config.data.allow_padding = ft_config.allow_padding
 
     config.data.shard_size = ft_config.shard_size
     config.data.episode_sampling_rate = ft_config.episode_sampling_rate
@@ -124,6 +169,7 @@ if __name__ == "__main__":
     config.data.ds_weights_alpha = ft_config.ds_weights_alpha
 
     config.training.save_only_model = ft_config.save_only_model
+    config.training.save_final_model = ft_config.save_final_model
     config.training.resume_from_checkpoint = ft_config.resume_from_checkpoint
     config.training.skip_weight_loading = ft_config.skip_weight_loading
 
