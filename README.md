@@ -56,12 +56,6 @@ For the normal optimized multi-GPU setup:
 uv sync --extra distributed --extra performance
 ```
 
-Development tools are available with:
-
-```bash
-uv sync --extra dev
-```
-
 Policy inference and evaluation dependencies are optional so training-only
 installs remain small:
 

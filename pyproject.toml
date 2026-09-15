@@ -6,10 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "minimal-groot"
 version = "0.1.0"
 description = "Minimal GR00T N1.7 fine-tuning package"
+requires-python = ">=3.12,<3.13"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "ATTRIBUTIONS.md"]
-requires-python = ">=3.12,<3.13"
 
 dependencies = [
     "accelerate==1.13.0",
@@ -49,7 +49,9 @@ distributed = [
 performance = [
     "flash-attn==2.8.3; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
-dev = ["build", "pre-commit", "pytest", "pytest-timeout", "ruff"]
+
+[dependency-groups]
+dev = ["ipykernel", "ipywidgets", "pre-commit"]
 
 [tool.setuptools.packages.find]
 where = ["."]
