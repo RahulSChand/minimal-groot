@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
-
 
 """
 Embodiment tags are used to identify the robot embodiment in the data.
@@ -24,6 +22,8 @@ Naming convention:
 
 If using multiple datasets, e.g. sim GR1 and real GR1, we can drop the dataset name and use only the robot name.
 """
+
+from enum import Enum
 
 
 class EmbodimentTag(Enum):
@@ -189,6 +189,7 @@ class EmbodimentTag(Enum):
 
 
 # Module-level tag category sets (cannot be Enum class attributes).
+# Tags baked into the base model (nvidia/GR00T-N1.7-3B), usable without finetuning.
 PRETRAIN_TAGS: frozenset[EmbodimentTag] = frozenset(
     {
         EmbodimentTag.OXE_DROID_RELATIVE_EEF_RELATIVE_JOINT,
@@ -201,8 +202,8 @@ PRETRAIN_TAGS: frozenset[EmbodimentTag] = frozenset(
         EmbodimentTag.REAL_R1_PRO_SHARPA_MECKA,
     }
 )
-"""Tags baked into the base model (nvidia/GR00T-N1.7-3B) — usable without finetuning."""
 
+# Tags that require a finetuned checkpoint.
 POSTTRAIN_TAGS: frozenset[EmbodimentTag] = frozenset(
     {
         EmbodimentTag.UNITREE_G1,
@@ -212,8 +213,8 @@ POSTTRAIN_TAGS: frozenset[EmbodimentTag] = frozenset(
         EmbodimentTag.LIBERO_PANDA,
     }
 )
-"""Tags that require a finetuned checkpoint."""
 
+# Tags for custom robots (finetuning only, not in any shipped checkpoint).
 FINETUNE_ONLY_TAGS: frozenset[EmbodimentTag] = frozenset(
     {
         EmbodimentTag.NEW_EMBODIMENT,
@@ -221,4 +222,3 @@ FINETUNE_ONLY_TAGS: frozenset[EmbodimentTag] = frozenset(
         EmbodimentTag.ROBOCASA_GR1_TABLETOP,
     }
 )
-"""Tags for custom robots (finetuning only, not in any shipped checkpoint)."""

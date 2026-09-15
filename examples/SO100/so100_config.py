@@ -23,7 +23,6 @@ from gr00t.data.types import (
     ModalityConfig,
 )
 
-
 so100_config = {
     # Video: current frame only; keys must match "video" entries in meta/modality.json
     "video": ModalityConfig(

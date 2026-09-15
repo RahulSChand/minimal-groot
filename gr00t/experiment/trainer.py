@@ -23,7 +23,7 @@ This subclass of HuggingFace's ``Trainer`` measures:
 
 The statistics are logged via ``self.log`` every ``profile_log_interval`` steps and
 also sent to the standard ``logging`` logger.  This is *not* meant to be a fully
-fledged profiler – it is a quick, lightweight way to confirm whether the training
+fledged profiler - it is a quick, lightweight way to confirm whether the training
 pipeline is bottlenecked by data loading or by the model's computation.
 """
 
@@ -33,7 +33,7 @@ import logging
 import os
 import queue
 import threading
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from transformers.trainer import TRAINER_STATE_NAME, Trainer, TrainerState, get_last_checkpoint
@@ -68,7 +68,7 @@ class _BatchIterator:
         if self._produced >= self._total_steps:
             raise StopIteration
 
-        # Fast path – single lock acquisition inside ``sample_batch``.
+        # Fast path - single lock acquisition inside ``sample_batch``.
         batch_samples = self._buffer.sample_batch(self._bs)  # type: ignore[attr-defined]
         self._produced += 1
         return self._collate(batch_samples)
@@ -115,9 +115,7 @@ class _PrefetchIterator:
         return batch
 
 
-def _batch_accuracy(
-    preds: torch.Tensor, labels: torch.Tensor, action_offset: Optional[int] = None
-) -> torch.Tensor:  # noqa: D401
+def _batch_accuracy(preds: torch.Tensor, labels: torch.Tensor, action_offset: int | None = None) -> torch.Tensor:
     """Compute token-level accuracy, ignoring ``-100`` label positions.
 
     Args:
@@ -130,7 +128,7 @@ def _batch_accuracy(
     """
     # casual prediction
     # Shift so that tokens < n predict n
-    # https://github.com/huggingface/transformers/blob/main/src/transformers/loss/loss_utils.py#L60
+    # https://github.com/huggingface/transformers/blob/47b0e478f324b54f177ea7998a0791870fdd0324/src/transformers/loss/loss_utils.py#L60
     preds = preds[:, :-1]
     labels = labels[:, 1:]
 
@@ -156,7 +154,7 @@ class Gr00tTrainer(Trainer):
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> None:  # noqa: D401 – simple description above
+    ) -> None:
         """Initialize the trainer.
 
         Args:
@@ -166,14 +164,14 @@ class Gr00tTrainer(Trainer):
         self.multiprocessing_context = kwargs.pop("multiprocessing_context", "fork")
         super().__init__(*args, **kwargs)
 
-    def log(self, logs: dict[str, float], start_time: Optional[float] = None) -> None:
+    def log(self, logs: dict[str, float], start_time: float | None = None) -> None:
         # Hide epoch from logged metrics as it's misleading for Iterable datasets.
         epoch = self.state.epoch
         self.state.epoch = None
         super().log(logs, start_time=start_time)
         self.state.epoch = epoch
 
-    def get_train_dataloader(self):  # noqa: D401
+    def get_train_dataloader(self):
         """Return a iterable dataloader without skipping the data during resume, but reseed the dataset instead."""
 
         # Fall back to default behaviour if not using the custom buffer.
@@ -190,16 +188,12 @@ class Gr00tTrainer(Trainer):
             # is read from TrainerState which is broadcast via rendezvous).
             new_seed = self.train_dataset.seed + curr_global_step
             self.train_dataset.reset_seed(new_seed)
-            print(
-                f"Resetting seed to {new_seed}. Please note that this will make the experiment non-reproducible."
-            )
+            print(f"Resetting seed to {new_seed}. Please note that this will make the experiment non-reproducible.")
 
         print("Creating custom train dataloader")
         # Handle the case where the dataset is an IterableDataset
         data_collator = self.data_collator
-        data_collator = self._get_collator_with_removed_columns(
-            data_collator, description="training"
-        )
+        data_collator = self._get_collator_with_removed_columns(data_collator, description="training")
         # Use persistent workers for sharded dataset if num_workers is greater than 0
         persistent_workers = self.args.dataloader_num_workers > 0
 
@@ -230,9 +224,7 @@ class Gr00tTrainer(Trainer):
         if resume_from_checkpoint is True:
             latest_checkpoint = get_last_checkpoint(self.args.output_dir)
             if latest_checkpoint is None:
-                raise ValueError(
-                    f"No valid checkpoint found in output directory ({self.args.output_dir})"
-                )
+                raise ValueError(f"No valid checkpoint found in output directory ({self.args.output_dir})")
         elif resume_from_checkpoint in (False, None):
             latest_checkpoint = None
         else:
@@ -241,9 +233,7 @@ class Gr00tTrainer(Trainer):
         if latest_checkpoint is not None:
             logging.info(f"Resuming from checkpoint {latest_checkpoint}")
             # In case of repeating the find_executable_batch_size, set `self._train_batch_size` properly
-            self.state = TrainerState.load_from_json(
-                os.path.join(latest_checkpoint, TRAINER_STATE_NAME)
-            )
+            self.state = TrainerState.load_from_json(os.path.join(latest_checkpoint, TRAINER_STATE_NAME))
 
         return super().train(resume_from_checkpoint=latest_checkpoint, **kwargs)
 
@@ -286,19 +276,13 @@ class Gr00tTrainer(Trainer):
         # --------------------------------------------------------------
         # Accuracy calculation
         # --------------------------------------------------------------
-        if (
-            self.state.global_step % self.args.logging_steps == 0
-            and model.training
-            and "labels" in inputs
-        ):
+        if self.state.global_step % self.args.logging_steps == 0 and model.training and "labels" in inputs:
             if self.action_offset is not None:
                 preds = outputs.logits.detach()[:, :, self.action_offset :].argmax(dim=-1).cpu()
             else:
                 preds = outputs.logits.detach().argmax(dim=-1).cpu()
             with torch.no_grad():
-                acc_local = _batch_accuracy(
-                    preds, inputs["labels"].to(device=preds.device), self.action_offset
-                )
+                acc_local = _batch_accuracy(preds, inputs["labels"].to(device=preds.device), self.action_offset)
             acc_tensor = torch.tensor(acc_local.item(), device=loss.device)
             acc_mean = self._nested_gather(acc_tensor).mean().item()
 
@@ -317,8 +301,7 @@ class Gr00tTrainer(Trainer):
                 gt_sample = gt_tokens.tolist()
                 pred_sample = shifted_preds[0][mask_0[: shifted_preds.shape[1]]][:20].tolist()
                 logging.info(
-                    "Step %d — GT vs Pred (first 20 action tokens, batch[0]):\n"
-                    "  GT:   %s\n  Pred: %s",
+                    "Step %d — GT vs Pred (first 20 action tokens, batch[0]):\n  GT:   %s\n  Pred: %s",
                     self.state.global_step,
                     gt_sample,
                     pred_sample,

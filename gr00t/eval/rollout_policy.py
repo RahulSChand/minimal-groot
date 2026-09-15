@@ -13,15 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import time
+import uuid
 from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-import sys
-import time
 from typing import Any
-import uuid
+
+import gymnasium as gym
+import numpy as np
+import tyro
+from tqdm import tqdm
 
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.deployment.modes import InferenceMode
@@ -30,11 +35,6 @@ from gr00t.eval.sim.env_utils import get_embodiment_tag_from_env_name
 from gr00t.eval.sim.wrapper.multistep_wrapper import MultiStepWrapper
 from gr00t.policy import BasePolicy
 from gr00t.utils.determinism import seed_everything
-import gymnasium as gym
-import numpy as np
-from tqdm import tqdm
-import tyro
-
 
 ROBOCASA_PANDA_RECORD_VIDEO_KEYS = (
     "video.res256_image_side_0",
@@ -145,7 +145,7 @@ def get_robocasa_env_fn(
             if robocasa_split:
                 kwargs["split"] = robocasa_split
         else:
-            import robocasa  # noqa: F401
+            import robocasa
             import robocasa.utils.gym_utils.gymnasium_groot  # noqa: F401
 
         return gym.make(env_name, enable_render=True, **kwargs)
@@ -352,13 +352,9 @@ def _collect_rollout_episodes(
                 # If episode ended, store results
                 if terminations[env_idx] or truncations[env_idx]:
                     if "final_info" in env_infos:
-                        current_successes[env_idx] |= any(
-                            env_infos["final_info"][env_idx]["success"]
-                        )
+                        current_successes[env_idx] |= any(env_infos["final_info"][env_idx]["success"])
                     if "task_progress" in env_infos:
-                        episode_infos["task_progress"].append(
-                            env_infos["task_progress"][env_idx][-1]
-                        )
+                        episode_infos["task_progress"].append(env_infos["task_progress"][env_idx][-1])
                     if "q_score" in env_infos:
                         episode_infos["q_score"].append(np.max(env_infos["q_score"][env_idx]))
                     if "valid" in env_infos:
@@ -453,8 +449,8 @@ def run_rollout_gymnasium_policy(
     # Reap the vector env (and the ffmpeg / async-worker children it owns) on
     # every exit path; a leaked child blocks the next eval shard's ports/GPUs.
     try:
-        episode_successes, episode_lengths, episode_rewards, episode_infos = (
-            _collect_rollout_episodes(env, policy, n_episodes, n_envs, seed)
+        episode_successes, episode_lengths, episode_rewards, episode_infos = _collect_rollout_episodes(
+            env, policy, n_episodes, n_envs, seed
         )
     finally:
         # Don't let a teardown error mask an in-flight rollout exception.
@@ -470,8 +466,7 @@ def run_rollout_gymnasium_policy(
 
     # Every captured episode ran >= 1 env-step, so episode_length >= 1.
     assert all(length >= 1 for length in episode_lengths), (
-        f"Internal invariant violated: rollout produced zero-length episode(s) "
-        f"in {episode_lengths!r}."
+        f"Internal invariant violated: rollout produced zero-length episode(s) in {episode_lengths!r}."
     )
 
     # Surface the per-episode length and reward that were tracked locally so
@@ -484,9 +479,7 @@ def run_rollout_gymnasium_policy(
 
     episode_infos = dict(episode_infos)  # Convert defaultdict to dict
     for key, value in episode_infos.items():
-        assert len(value) == len(episode_successes), (
-            f"Length of {key} is not equal to the number of episodes"
-        )
+        assert len(value) == len(episode_successes), f"Length of {key} is not equal to the number of episodes"
 
     # process valid results
     if "valid" in episode_infos:

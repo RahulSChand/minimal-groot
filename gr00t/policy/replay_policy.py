@@ -161,9 +161,7 @@ class ReplayPolicy(BasePolicy):
 
         # ===== VIDEO VALIDATION =====
         for video_key in self.modality_configs["video"].modality_keys:
-            assert video_key in observation["video"], (
-                f"Video key '{video_key}' must be in observation"
-            )
+            assert video_key in observation["video"], f"Video key '{video_key}' must be in observation"
 
             if bs == -1:
                 bs = len(observation["video"][video_key])
@@ -197,9 +195,7 @@ class ReplayPolicy(BasePolicy):
         # ===== STATE VALIDATION =====
         for state_key in self.modality_configs["state"].modality_keys:
             # Existence check must precede indexing — see video validation above.
-            assert state_key in observation["state"], (
-                f"State key '{state_key}' must be in observation"
-            )
+            assert state_key in observation["state"], f"State key '{state_key}' must be in observation"
 
             if bs == -1:
                 bs = len(observation["state"][state_key])
@@ -229,9 +225,7 @@ class ReplayPolicy(BasePolicy):
         # ===== LANGUAGE VALIDATION =====
         for language_key in self.modality_configs["language"].modality_keys:
             # Existence check must precede indexing — see video validation above.
-            assert language_key in observation["language"], (
-                f"Language key '{language_key}' must be in observation"
-            )
+            assert language_key in observation["language"], f"Language key '{language_key}' must be in observation"
 
             if bs == -1:
                 bs = len(observation["language"][language_key])
@@ -251,13 +245,9 @@ class ReplayPolicy(BasePolicy):
                     f"Language key '{language_key}'s horizon must be {len(self.modality_configs['language'].delta_indices)}. Got {len(batch_item)}"
                 )
 
-                assert isinstance(batch_item, list), (
-                    f"Language batch item must be a list. Got {type(batch_item)}"
-                )
+                assert isinstance(batch_item, list), f"Language batch item must be a list. Got {type(batch_item)}"
 
-                assert len(batch_item) == 1, (
-                    f"Language batch item must have exactly one item. Got {len(batch_item)}"
-                )
+                assert len(batch_item) == 1, f"Language batch item must have exactly one item. Got {len(batch_item)}"
 
                 assert isinstance(batch_item[0], str), (
                     f"Language batch item must be a string. Got {type(batch_item[0])}"
@@ -296,13 +286,10 @@ class ReplayPolicy(BasePolicy):
             )
 
             action_horizon = (
-                self.modality_configs["action"].delta_indices[-1]
-                - self.modality_configs["action"].delta_indices[0]
-                + 1
+                self.modality_configs["action"].delta_indices[-1] - self.modality_configs["action"].delta_indices[0] + 1
             )
             assert action_arr.shape[1] == action_horizon, (
-                f"Action key '{action_key}'s horizon must be {action_horizon}. "
-                f"Got {action_arr.shape[1]}"
+                f"Action key '{action_key}'s horizon must be {action_horizon}. Got {action_arr.shape[1]}"
             )
 
     def _get_action(
@@ -331,9 +318,7 @@ class ReplayPolicy(BasePolicy):
             print("No batch size provided, using default batch size of 1")
         # Note that this can differ form the execution horizon, as the policy can predict more steps than what's actually executed.
         action_horizon = (
-            self.modality_configs["action"].delta_indices[-1]
-            - self.modality_configs["action"].delta_indices[0]
-            + 1
+            self.modality_configs["action"].delta_indices[-1] - self.modality_configs["action"].delta_indices[0] + 1
         )
         assert self.execution_horizon <= action_horizon, (
             f"Execution horizon must be less than or equal to the model's action horizon. Got {self.execution_horizon} and {action_horizon}"
@@ -354,9 +339,7 @@ class ReplayPolicy(BasePolicy):
                     # Near end of episode: pad with last action
                     remaining = self.episode_length - self.current_step
                     valid_chunk = actions[self.current_step :]  # (remaining, D)
-                    padding = np.tile(
-                        actions[-1:], (action_horizon - remaining, 1)
-                    )  # (action_horizon - remaining, D)
+                    padding = np.tile(actions[-1:], (action_horizon - remaining, 1))  # (action_horizon - remaining, D)
                     chunk = np.concatenate([valid_chunk, padding], axis=0)
 
             # Expand to batch dimension: (action_horizon, D) -> (B, action_horizon, D)

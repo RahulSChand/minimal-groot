@@ -14,8 +14,8 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
@@ -24,7 +24,6 @@ from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 
 from gr00t.utils.dist_utils import run_on_rank0, run_or_wait_on_rank0
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +43,11 @@ def _broadcast_save_decision(save_flag: int, metric_value: float) -> tuple[int, 
         return save_flag, metric_value
 
     backend = dist.get_backend()
-    device = (
-        torch.device(f"cuda:{torch.cuda.current_device()}")
-        if backend == "nccl"
-        else torch.device("cpu")
-    )
+    device = torch.device(f"cuda:{torch.cuda.current_device()}") if backend == "nccl" else torch.device("cpu")
     # Use float64 so the metric reaches every rank bit-for-bit identical to
     # rank-0 — the value is interpolated into the checkpoint directory name
     # and must agree across ranks.
-    payload = torch.tensor(
-        [float(save_flag), float(metric_value)], device=device, dtype=torch.float64
-    )
+    payload = torch.tensor([float(save_flag), float(metric_value)], device=device, dtype=torch.float64)
     dist.broadcast(payload, src=0)
     return int(payload[0].item()), float(payload[1].item())
 
@@ -90,9 +83,7 @@ class CheckpointFormatCallback(TrainerCallback):
             if self.exp_cfg_dir is not None:
                 exp_cfg_dst = checkpoint_dir / self.exp_cfg_dir.name
                 if self.exp_cfg_dir.exists():
-                    print(
-                        f"Copying experiment config directory {self.exp_cfg_dir} to {exp_cfg_dst}"
-                    )
+                    print(f"Copying experiment config directory {self.exp_cfg_dir} to {exp_cfg_dst}")
                     shutil.copytree(self.exp_cfg_dir, exp_cfg_dst, dirs_exist_ok=True)
 
             # Copy processor directory if provided
@@ -157,11 +148,7 @@ class BestMetricCheckpointCallback(TrainerCallback):
         if state.is_world_process_zero and metrics is not None:
             current = metrics.get(self.metric_name, None)
             if current is not None:
-                is_better = (
-                    current > self.best_metric
-                    if self.greater_is_better
-                    else current < self.best_metric
-                )
+                is_better = current > self.best_metric if self.greater_is_better else current < self.best_metric
                 if is_better:
                     save_flag = 1
                     metric_value = float(current)
@@ -173,8 +160,7 @@ class BestMetricCheckpointCallback(TrainerCallback):
         self.best_metric = metric_value
 
         best_checkpoint_dir = (
-            Path(args.output_dir)
-            / f"checkpoint-{state.global_step}-best-{self.metric_name}_{metric_value}"
+            Path(args.output_dir) / f"checkpoint-{state.global_step}-best-{self.metric_name}_{metric_value}"
         )
 
         run_on_rank0(best_checkpoint_dir.mkdir, exist_ok=True, label="best_checkpoint.mkdir")
@@ -201,10 +187,7 @@ class BestMetricCheckpointCallback(TrainerCallback):
                     metric_value,
                 )
 
-                if (
-                    self._best_checkpoint_dir is not None
-                    and Path(self._best_checkpoint_dir).exists()
-                ):
+                if self._best_checkpoint_dir is not None and Path(self._best_checkpoint_dir).exists():
                     shutil.rmtree(self._best_checkpoint_dir)
 
                 self._best_checkpoint_dir = str(best_checkpoint_dir)

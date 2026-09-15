@@ -13,14 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CPU regression test for the ``save_only_model`` × ``resume_from_checkpoint`` guard.
+"""CPU regression test for the ``save_only_model`` and ``resume_from_checkpoint`` guard.
 
 The guard lives in stdlib-only ``gr00t.configs.training.training_config`` so
 this test runs without torch / transformers / wandb.
 """
 
-from gr00t.configs.training.training_config import TrainingConfig, check_resume_compatibility
 import pytest
+
+from gr00t.configs.training.training_config import TrainingConfig, check_resume_compatibility
 
 
 def test_raises_on_save_only_model_and_resume():

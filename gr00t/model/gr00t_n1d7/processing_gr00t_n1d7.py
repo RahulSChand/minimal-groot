@@ -13,21 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 import json
 import logging
 import os
-from pathlib import Path
 import random
 import re
-from typing import Any, Dict
 import warnings
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
 
 import albumentations as A
 import numpy as np
-from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
+from PIL import Image
 from transformers import AutoProcessor
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.utils import cached_file
@@ -43,7 +43,6 @@ from .image_augmentations import (
     build_image_transformations,
     build_image_transformations_albumentations,
 )
-
 
 try:
     from transformers import Qwen3VLProcessor
@@ -115,16 +114,13 @@ def _build_tag_to_projector_index(groups: dict[int, set[str]]) -> dict[str, int]
     return mapping
 
 
-EMBODIMENT_TAG_TO_PROJECTOR_INDEX: dict[str, int] = _build_tag_to_projector_index(
-    _PROJECTOR_INDEX_GROUPS
-)
+EMBODIMENT_TAG_TO_PROJECTOR_INDEX: dict[str, int] = _build_tag_to_projector_index(_PROJECTOR_INDEX_GROUPS)
 
 
 def build_processor(model_name: str, transformers_loading_kwargs: dict) -> Qwen3VLProcessor:
     if Qwen3VLProcessor is None:
         raise ImportError(
-            "Qwen3VLProcessor is not available. "
-            "Please upgrade transformers: pip install transformers>=4.52.0"
+            "Qwen3VLProcessor is not available. Please upgrade transformers: pip install transformers>=4.52.0"
         )
     return Qwen3VLProcessor.from_pretrained(model_name, **transformers_loading_kwargs)
 
@@ -170,7 +166,7 @@ class Gr00tN1d7DataCollator:
         self.model_type = model_type
         self.model_name = model_name
 
-    def __call__(self, features: list[Dict[str, Any]]) -> BatchFeature:
+    def __call__(self, features: list[dict[str, Any]]) -> BatchFeature:
         batch = {}
         keys = list(set().union(*(elem.keys() for elem in features)))
 
@@ -220,8 +216,8 @@ class Gr00tN1d7Processor(BaseProcessor):
         statistics: (dict[str, dict[str, dict[str, dict[str, list[float]]]]] | None) = None,
         use_percentiles: bool = False,
         clip_outliers: bool = True,
-        image_crop_size: list[int] = None,
-        image_target_size: list[int] = None,
+        image_crop_size: list[int] | None = None,
+        image_target_size: list[int] | None = None,
         shortest_image_edge: int = 256,
         crop_fraction: float = 0.95,
         random_rotation_angle: int | None = None,
@@ -303,17 +299,15 @@ class Gr00tN1d7Processor(BaseProcessor):
         # Choose between torchvision and albumentations transforms
         self.use_albumentations = use_albumentations
         if use_albumentations:
-            self.train_image_transform, self.eval_image_transform = (
-                build_image_transformations_albumentations(
-                    image_target_size,
-                    image_crop_size,
-                    random_rotation_angle,
-                    color_jitter_params,
-                    shortest_image_edge,
-                    crop_fraction,
-                    extra_augmentation_config=self.extra_augmentation_config,
-                    letter_box_transform=self.letter_box_transform,
-                )
+            self.train_image_transform, self.eval_image_transform = build_image_transformations_albumentations(
+                image_target_size,
+                image_crop_size,
+                random_rotation_angle,
+                color_jitter_params,
+                shortest_image_edge,
+                crop_fraction,
+                extra_augmentation_config=self.extra_augmentation_config,
+                letter_box_transform=self.letter_box_transform,
             )
         else:
             self.train_image_transform, self.eval_image_transform = build_image_transformations(
@@ -375,9 +369,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         # Compute action dimensions for convenience
         self.action_dim = {}
         for embodiment_tag in self.state_action_processor.statistics:
-            self.action_dim[embodiment_tag] = self.state_action_processor.get_action_dim(
-                embodiment_tag
-            )
+            self.action_dim[embodiment_tag] = self.state_action_processor.get_action_dim(embodiment_tag)
 
     def decode_action(
         self,
@@ -392,16 +384,12 @@ class Gr00tN1d7Processor(BaseProcessor):
         joint_groups = self.modality_configs[embodiment_tag.value]["action"].modality_keys
         action_horizon = len(self.modality_configs[embodiment_tag.value]["action"].delta_indices)
         for key in joint_groups:
-            joint_dim = self.state_action_processor.norm_params[embodiment_tag.value]["action"][
-                key
-            ]["dim"].item()
+            joint_dim = self.state_action_processor.norm_params[embodiment_tag.value]["action"][key]["dim"].item()
             out_dict[key] = action[..., :action_horizon, start_idx : start_idx + joint_dim]
             start_idx += joint_dim
 
         # Use StateActionProcessor to unnormalize and convert to absolute
-        return self.state_action_processor.unapply_action(
-            out_dict, embodiment_tag.value, state=state
-        )
+        return self.state_action_processor.unapply_action(out_dict, embodiment_tag.value, state=state)
 
     def unapply(
         self,
@@ -426,9 +414,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         joint_groups = self.modality_configs[embodiment_tag.value]["action"].modality_keys
         action_horizon = len(self.modality_configs[embodiment_tag.value]["action"].delta_indices)
         for key in joint_groups:
-            joint_dim = self.state_action_processor.norm_params[embodiment_tag.value]["action"][
-                key
-            ]["dim"].item()
+            joint_dim = self.state_action_processor.norm_params[embodiment_tag.value]["action"][key]["dim"].item()
             out_dict[key] = action[..., :action_horizon, start_idx : start_idx + joint_dim]
             start_idx += joint_dim
 
@@ -437,9 +423,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         if state is not None:
             stripped_state = {k.replace("state.", ""): v for k, v in state.items()}
 
-        result = self.state_action_processor.unapply_action(
-            out_dict, embodiment_tag.value, state=stripped_state
-        )
+        result = self.state_action_processor.unapply_action(out_dict, embodiment_tag.value, state=stripped_state)
         return {f"action.{key}": value for key, value in result.items()}
 
     def process_observation(self, observation: dict[str, Any], embodiment_tag: EmbodimentTag):
@@ -459,9 +443,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         # Normalize states
         state_keys = modality_config["state"].modality_keys
         state_data = {key: observation[f"state.{key}"] for key in state_keys}
-        exclude_state = self.exclude_state or getattr(
-            modality_config["state"], "exclude_state", False
-        )
+        exclude_state = self.exclude_state or getattr(modality_config["state"], "exclude_state", False)
         if exclude_state:
             normalized_states = torch.cat(
                 [torch.from_numpy(np.zeros_like(state_data[key])) for key in state_keys], dim=-1
@@ -470,9 +452,7 @@ class Gr00tN1d7Processor(BaseProcessor):
             norm_state_dict = self.state_action_processor.apply_state(
                 state=state_data, embodiment_tag=embodiment_tag.value
             )
-            normalized_states = torch.cat(
-                [torch.from_numpy(norm_state_dict[key]) for key in state_keys], dim=-1
-            )
+            normalized_states = torch.cat([torch.from_numpy(norm_state_dict[key]) for key in state_keys], dim=-1)
 
         assert normalized_states.shape[1] <= self.max_state_dim, (
             f"State dimension {normalized_states.shape[1]} exceeds max_state_dim {self.max_state_dim}"
@@ -487,9 +467,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         # Process images: observation values are (B, T, H, W, C) numpy arrays
         image_keys = modality_config["video"].modality_keys
         images_dict = {view: torch.from_numpy(observation[f"video.{view}"]) for view in image_keys}
-        images = torch.stack(
-            [images_dict[view] for view in image_keys], dim=2
-        )  # (B, T, V, H, W, C)
+        images = torch.stack([images_dict[view] for view in image_keys], dim=2)  # (B, T, V, H, W, C)
         assert images.ndim == 6
         B, T, V, img_H, img_W, img_C = images.shape
 
@@ -499,9 +477,7 @@ class Gr00tN1d7Processor(BaseProcessor):
             transformed_pil, _ = apply_with_replay(self.eval_image_transform, pil_images)
             transformed_stacked = torch.stack(transformed_pil)  # (B*T*V, C, H_new, W_new)
             _, img_C_new, img_H_new, img_W_new = transformed_stacked.shape
-            transformed_images = transformed_stacked.reshape(
-                B, T * V, img_C_new, img_H_new, img_W_new
-            ).numpy()
+            transformed_images = transformed_stacked.reshape(B, T * V, img_C_new, img_H_new, img_W_new).numpy()
         else:
             # Rearrange (B, T, V, H, W, C) → (B, T*V, C, H, W) for torchvision
             images_perm = images.permute(0, 1, 2, 5, 3, 4).reshape(B, T * V, img_C, img_H, img_W)
@@ -523,9 +499,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         for k, v in tokenized.items():
             transformed_observation[k] = v
 
-        embodiment_id = (
-            torch.ones(B, dtype=torch.int32) * self.embodiment_id_mapping[embodiment_tag.value]
-        )
+        embodiment_id = torch.ones(B, dtype=torch.int32) * self.embodiment_id_mapping[embodiment_tag.value]
         transformed_observation["embodiment_id"] = embodiment_id
 
         # Action mask: shape (B, max_action_horizon), 1 in the valid horizon window
@@ -564,9 +538,7 @@ class Gr00tN1d7Processor(BaseProcessor):
         ]
 
         # Apply chat template but don't process yet - let collator handle it
-        text = self.processor.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=False
-        )
+        text = self.processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=False)
 
         # Return vlm_content format for collation
         return {
@@ -645,17 +617,13 @@ class Gr00tN1d7Processor(BaseProcessor):
             self.modality_configs[embodiment_tag.value]["state"], "exclude_state", False
         )
         if exclude_state or (
-            self.state_dropout_prob > 0
-            and random.random() < self.state_dropout_prob
-            and self.training
+            self.state_dropout_prob > 0 and random.random() < self.state_dropout_prob and self.training
         ):
             normalized_states = torch.cat(
                 [torch.from_numpy(np.zeros_like(state_data[key])) for key in state_keys], dim=-1
             )
         else:
-            normalized_states = torch.cat(
-                [torch.from_numpy(norm_state_dict[key]) for key in state_keys], dim=-1
-            )
+            normalized_states = torch.cat([torch.from_numpy(norm_state_dict[key]) for key in state_keys], dim=-1)
         normalized_states = torch.cat(
             [
                 normalized_states,
@@ -721,15 +689,11 @@ class Gr00tN1d7Processor(BaseProcessor):
                 view_images = images[view]
 
                 # Apply transforms with replay for consistency
-                transformed_images, replay = apply_with_replay(
-                    image_transform, view_images, view_masks, replay
-                )
+                transformed_images, replay = apply_with_replay(image_transform, view_images, view_masks, replay)
                 temporal_stacked_images[view] = torch.stack(transformed_images)  # (T, C, H, W)
         else:
             if masks is not None:
-                raise ValueError(
-                    "Mask transforms require albumentations. Set use_albumentations_transforms=True."
-                )
+                raise ValueError("Mask transforms require albumentations. Set use_albumentations_transforms=True.")
             # Use torchvision transforms
             for view in image_keys:
                 assert view in images, f"{view} not in {images}"
@@ -744,9 +708,9 @@ class Gr00tN1d7Processor(BaseProcessor):
             assert v.dtype == torch.uint8, f"{v} is not a uint8 tensor"
             assert v.shape[1] == 3, f"{v} is not a 3 channel tensor"
 
-        stacked_images = torch.stack(
-            [temporal_stacked_images[view] for view in image_keys], dim=1
-        ).flatten(0, 1)  # (T*V, C, H, W)
+        stacked_images = torch.stack([temporal_stacked_images[view] for view in image_keys], dim=1).flatten(
+            0, 1
+        )  # (T*V, C, H, W)
 
         vlm_inputs = self._apply_vlm_processing(stacked_images, language)
         return vlm_inputs
@@ -806,9 +770,7 @@ class Gr00tN1d7Processor(BaseProcessor):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: str | Path, **kwargs):
-        transformers_loading_kwargs = kwargs.pop(
-            "transformers_loading_kwargs", {"trust_remote_code": True}
-        )
+        transformers_loading_kwargs = kwargs.pop("transformers_loading_kwargs", {"trust_remote_code": True})
         hub_keys = (
             "_commit_hash",
             "cache_dir",
@@ -829,22 +791,16 @@ class Gr00tN1d7Processor(BaseProcessor):
         embodiment_id_file = pretrained_model_name_or_path / "embodiment_id.json"
         is_local = os.path.isdir(pretrained_model_name_or_path)
         if not is_local:
-            config_file = Path(
-                cached_file(pretrained_model_name_or_path, "processor_config.json", **hub_kwargs)
-            )
-            statistics_file = Path(
-                cached_file(pretrained_model_name_or_path, "statistics.json", **hub_kwargs)
-            )
-            embodiment_id_file = Path(
-                cached_file(pretrained_model_name_or_path, "embodiment_id.json", **hub_kwargs)
-            )
+            config_file = Path(cached_file(pretrained_model_name_or_path, "processor_config.json", **hub_kwargs))
+            statistics_file = Path(cached_file(pretrained_model_name_or_path, "statistics.json", **hub_kwargs))
+            embodiment_id_file = Path(cached_file(pretrained_model_name_or_path, "embodiment_id.json", **hub_kwargs))
 
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             config = json.load(f)
-        with open(statistics_file, "r") as f:
+        with open(statistics_file) as f:
             statistics = json.load(f)
         if embodiment_id_file.exists():
-            with open(embodiment_id_file, "r") as f:
+            with open(embodiment_id_file) as f:
                 embodiment_id_mapping = json.load(f)
         else:
             embodiment_id_mapping = None

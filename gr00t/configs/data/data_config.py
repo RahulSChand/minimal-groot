@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any
 
 import tyro
 
@@ -34,10 +34,10 @@ class SingleDatasetConfig:
     """
 
     # Path to the dataset root directory (can be strings or dicts for complex configs)
-    dataset_paths: List[Any]
+    dataset_paths: list[Any]
 
     # Robot embodiment identifier (e.g. "gr1", "franka")
-    embodiment_tag: Optional[str] = None
+    embodiment_tag: str | None = None
 
     # Relative sampling probability (will be normalised across the list)
     mix_ratio: float = 1.0
@@ -46,7 +46,7 @@ class SingleDatasetConfig:
 
     # Optional validation dataset path for open-loop evaluation
     # If not provided, falls back to dataset_paths for evaluation
-    val_dataset_path: Optional[str] = None
+    val_dataset_path: str | None = None
 
 
 @dataclass
@@ -56,7 +56,7 @@ class DataConfig:
     # Leave empty by default for backwards-compatibility with the original
     # single-dataset workflow.  Users can supply one or more configs via CLI or
     # YAML when they need mixing.
-    datasets: List[SingleDatasetConfig] = field(default_factory=list)
+    datasets: list[SingleDatasetConfig] = field(default_factory=list)
 
     # Modality configs
     # There are three sources of modality configs:
@@ -97,5 +97,5 @@ class DataConfig:
     subsample_ratio: float = 1.0
 
     # DP Image Config
-    image_crop_size: List[int] = field(default_factory=lambda: [244, 244])
-    image_target_size: List[int] = field(default_factory=lambda: [224, 224])
+    image_crop_size: list[int] = field(default_factory=lambda: [244, 244])
+    image_target_size: list[int] = field(default_factory=lambda: [224, 224])

@@ -18,14 +18,14 @@
 import json
 import logging
 import os
-from pathlib import Path
 import warnings
+from pathlib import Path
 
-from omegaconf import OmegaConf
 import torch
 import torch.distributed as dist
-from transformers import TrainingArguments, set_seed
 import wandb
+from omegaconf import OmegaConf
+from transformers import TrainingArguments, set_seed
 
 from gr00t.configs.base_config import Config
 from gr00t.configs.training.training_config import check_resume_compatibility
@@ -56,7 +56,7 @@ def _assert_num_gpus_matches_world_size(num_gpus: int) -> None:
     ``num_gpus`` drives per-device batch size and the DeepSpeed gating, while
     HF ``Trainer`` and dataset sharding use the real ``WORLD_SIZE`` from
     torchrun. A mismatch silently rescales the effective batch (e.g. an 8-rank
-    launch with ``num_gpus=1`` trains at 8× the intended batch), so reconcile
+    launch with ``num_gpus=1`` trains at 8 times the intended batch), so reconcile
     at the launcher trust boundary.
     """
     world_size = os.environ.get("WORLD_SIZE")
@@ -78,8 +78,7 @@ def warn_configs(config: Config):
 
     if config.training.gradient_accumulation_steps > 1:
         logging.info(
-            "global_batch_size=%d × gradient_accumulation_steps=%d "
-            "→ accumulated_batch_size=%d per optimizer step",
+            "global_batch_size=%d * gradient_accumulation_steps=%d -> accumulated_batch_size=%d per optimizer step",
             config.training.global_batch_size,
             config.training.gradient_accumulation_steps,
             config.training.accumulated_batch_size,
@@ -95,37 +94,25 @@ def warn_configs(config: Config):
             "warmup_steps will be deprecated in the future, please use warmup_ratio instead. For now, this will override warmup_ratio."
         )
 
-    if (
-        hasattr(config.model, "backbone_trainable_params_fp32")
-        and not config.model.backbone_trainable_params_fp32
-    ):
-        warnings.warn(
-            "backbone_trainable_params_fp32 is not True. This will be deprecated in the future."
-        )
+    if hasattr(config.model, "backbone_trainable_params_fp32") and not config.model.backbone_trainable_params_fp32:
+        warnings.warn("backbone_trainable_params_fp32 is not True. This will be deprecated in the future.")
 
-    if (
-        hasattr(config.model, "use_albumentations_transforms")
-        and not config.model.use_albumentations_transforms
-    ):
-        warnings.warn(
-            "use_albumentations_transforms is not True. This will be deprecated in the future."
-        )
+    if hasattr(config.model, "use_albumentations_transforms") and not config.model.use_albumentations_transforms:
+        warnings.warn("use_albumentations_transforms is not True. This will be deprecated in the future.")
 
     if (
         hasattr(config.model, "image_crop_size")
         and hasattr(config.model, "image_target_size")
         and (config.model.image_crop_size is not None or config.model.image_target_size is not None)
     ):
-        assert (
-            config.model.image_crop_size is not None and config.model.image_target_size is not None
-        ), "image_crop_size and image_target_size must be set together"
+        assert config.model.image_crop_size is not None and config.model.image_target_size is not None, (
+            "image_crop_size and image_target_size must be set together"
+        )
         warnings.warn(
             "image_crop_size and image_target_size will be deprecated in the future. Please use shortest_image_edge and crop_fraction instead."
         )
         if hasattr(config.model, "shortest_image_edge") and hasattr(config.model, "crop_fraction"):
-            assert (
-                config.model.shortest_image_edge is None and config.model.crop_fraction is None
-            ), (
+            assert config.model.shortest_image_edge is None and config.model.crop_fraction is None, (
                 "Do not set shortest_image_edge and crop_fraction together with image_crop_size and image_target_size"
             )
 
@@ -157,9 +144,7 @@ def _init_distributed_process_group() -> int:
     return 0
 
 
-def save_run_config_artifacts(
-    save_cfg_dir: Path, output_dir: Path, config: Config, experiment_name: str
-):
+def save_run_config_artifacts(save_cfg_dir: Path, output_dir: Path, config: Config, experiment_name: str):
     """Write ``config.yaml`` / ``conf.yaml`` / ``wandb_config.json``."""
     save_cfg_dir.mkdir(parents=True, exist_ok=True)
     config.save(save_cfg_dir / "config.yaml")
@@ -341,9 +326,7 @@ def run(config: Config):
         logging.info(f"{global_rank} Starting training with profiling...")
 
         def on_trace_ready_handler(trainer, profile_dir, prof):
-            output_path = (
-                profile_dir / f"trace_rank_{global_rank}_iter_{trainer.state.global_step}.json"
-            )
+            output_path = profile_dir / f"trace_rank_{global_rank}_iter_{trainer.state.global_step}.json"
             prof.export_chrome_trace(str(output_path))
             logging.info(f"Trace saved to {output_path}")
 
@@ -373,9 +356,7 @@ def run(config: Config):
     if config.training.assert_loss_less_than is not None:
         final_loss = trainer.loss
         if final_loss.item() > config.training.assert_loss_less_than:
-            raise AssertionError(
-                f"Loss too high: {final_loss.item()} vs {config.training.assert_loss_less_than})"
-            )
+            raise AssertionError(f"Loss too high: {final_loss.item()} vs {config.training.assert_loss_less_than})")
 
     # # Cleanup
     if hasattr(train_dataset, "close"):

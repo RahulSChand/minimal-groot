@@ -7373,23 +7373,23 @@ Availability: https://github.com/OpenMathLib/OpenBLAS/
 License: BSD-3-Clause-Attribution
   Copyright (c) 2011-2014, The OpenBLAS Project
   All rights reserved.
-  
+
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
   met:
-  
+
      1. Redistributions of source code must retain the above copyright
         notice, this list of conditions and the following disclaimer.
-  
+
      2. Redistributions in binary form must reproduce the above copyright
         notice, this list of conditions and the following disclaimer in
         the documentation and/or other materials provided with the
         distribution.
-     3. Neither the name of the OpenBLAS project nor the names of 
-        its contributors may be used to endorse or promote products 
-        derived from this software without specific prior written 
+     3. Neither the name of the OpenBLAS project nor the names of
+        its contributors may be used to endorse or promote products
+        derived from this software without specific prior written
         permission.
-  
+
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -7414,36 +7414,36 @@ License: BSD-3-Clause-Attribution
                           rights reserved.
   Copyright (c) 2006-2013 The University of Colorado Denver.  All rights
                           reserved.
-  
+
   $COPYRIGHT$
-  
+
   Additional copyrights may follow
-  
+
   $HEADER$
-  
+
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
   met:
-  
+
   - Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
-  
+
   - Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer listed
     in this license in the documentation and/or other materials
     provided with the distribution.
-  
+
   - Neither the name of the copyright holders nor the names of its
     contributors may be used to endorse or promote products derived from
     this software without specific prior written permission.
-  
+
   The copyright holders provide no reassurances that the source code
   provided does not infringe any patent, copyright, or any other
   intellectual property rights of third parties.  The copyright holders
   disclaim any liability to any recipient for claims brought against
   recipient by any third party for infringement of that parties
   intellectual property rights.
-  
+
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -7463,21 +7463,21 @@ Description: dynamically linked to files compiled with gcc
 Availability: https://gcc.gnu.org/git/?p=gcc.git;a=tree;f=libgfortran
 License: GPL-3.0-with-GCC-exception
   Copyright (C) 2002-2017 Free Software Foundation, Inc.
-  
+
   Libgfortran is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 3, or (at your option)
   any later version.
-  
+
   Libgfortran is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
-  
+
   Under Section 7 of GPL version 3, you are granted additional
   permissions described in the GCC Runtime Library Exception, version
   3.1, as published by the Free Software Foundation.
-  
+
   You should have received a copy of the GNU General Public License and
   a copy of the GCC Runtime Library Exception along with this program;
   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
@@ -8752,7 +8752,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 
-The PyTorch repository and source distributions bundle several libraries that are 
+The PyTorch repository and source distributions bundle several libraries that are
 compatibly licensed.  We list these here.
 
 Name: DCGM
@@ -10234,7 +10234,7 @@ SOFTWARE.
 ----------------------------------------------------------------------------------------
 Copyright (c) Microsoft Corporation
 
-All rights reserved. 
+All rights reserved.
 
 MIT License
 
@@ -10702,7 +10702,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- */ 
+ */
 
 
 /pytorch/third_party/cutlass/LICENSE.txt
@@ -11384,7 +11384,7 @@ SOFTWARE.
 The MIT License (MIT)
 
 Copyright (c) 2015 Martin Moene
-Copyright (c) 2015 Microsoft Corporation. All rights reserved. 
+Copyright (c) 2015 Microsoft Corporation. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -14036,27 +14036,27 @@ THE SOFTWARE.
 
 /pytorch/third_party/opentelemetry-cpp/third_party/ms-gsl/LICENSE
 -----------------------------------------------------------------
-Copyright (c) 2015 Microsoft Corporation. All rights reserved. 
- 
-This code is licensed under the MIT License (MIT). 
+Copyright (c) 2015 Microsoft Corporation. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy 
-of this software and associated documentation files (the "Software"), to deal 
-in the Software without restriction, including without limitation the rights 
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies 
-of the Software, and to permit persons to whom the Software is furnished to do 
-so, subject to the following conditions: 
+This code is licensed under the MIT License (MIT).
 
-The above copyright notice and this permission notice shall be included in all 
-copies or substantial portions of the Software. 
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
-THE SOFTWARE. 
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 
 /pytorch/third_party/fbgemm/fbgemm_gpu/src/quantize_ops/mx/LICENSE
@@ -15180,15 +15180,15 @@ HEREUNDER IS ON AN "AS IS" BASIS, AND THE UNIVERSITY OF NORTH CAROLINA AT
 CHAPEL HILL HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE, SUPPORT, UPDATES,
 ENHANCEMENTS, OR MODIFICATIONS.
 
-The authors may be contacted via:  
+The authors may be contacted via:
 
 US Mail:             Eric Larsen, Stefan Gottschalk
                       Department of Computer Science
                       Sitterson Hall, CB #3175
                       University of North Carolina
-                      Chapel Hill, NC 27599-3175  
+                      Chapel Hill, NC 27599-3175
 
-Phone:               (919) 962-1749 
+Phone:               (919) 962-1749
 
 Email:               geom@cs.unc.edu
 
@@ -16025,7 +16025,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------------
 Copyright (c) Microsoft Corporation
 
-All rights reserved. 
+All rights reserved.
 
 MIT License
 
@@ -17363,10 +17363,10 @@ This basically means: do what you want with it.
 /// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 /// copies of the Software, and to permit persons to whom the Software is
 /// furnished to do so, subject to the following conditions:
-/// 
+///
 /// The above copyright notice and this permission notice shall be included in
 /// all copies or substantial portions of the Software.
-/// 
+///
 /// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 /// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 /// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17584,7 +17584,7 @@ BSD
 https://github.com/pytorch/vision
 BSD 3-Clause License
 
-Copyright (c) Soumith Chintala 2016, 
+Copyright (c) Soumith Chintala 2016,
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

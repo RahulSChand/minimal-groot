@@ -42,7 +42,7 @@ def _import_config():
 def test_save_does_not_emit_python_object_tags(tmp_path):
     """Save() output must be plain-dict YAML — no ``!!python/`` tag
     anywhere, so the file cannot reopen the construct-from-disk path."""
-    Config, get_default_config = _import_config()
+    _Config, get_default_config = _import_config()
     cfg = get_default_config()
 
     out = tmp_path / "config.yaml"
@@ -77,8 +77,7 @@ def test_load_rejects_malicious_python_object_tag(tmp_path, monkeypatch):
     )
     msg = str(excinfo.value)
     assert "rejected unsafe legacy config YAML" in msg or "python/object" in msg.lower(), (
-        "Migration error should clearly signal that the legacy unsafe YAML "
-        f"format was rejected. Got: {msg!r}"
+        f"Migration error should clearly signal that the legacy unsafe YAML format was rejected. Got: {msg!r}"
     )
 
 
@@ -144,7 +143,7 @@ def test_save_serialises_enum_action_configs(tmp_path):
     strings via ``_build_safe_tree`` before dumping — otherwise the
     pre-fix production save path (``experiment.py``) regresses to a
     ``RepresenterError`` at training start."""
-    Config, get_default_config = _import_config()
+    _Config, get_default_config = _import_config()
     cfg = get_default_config()
     out = tmp_path / "config.yaml"
     cfg.save(out)
@@ -164,7 +163,7 @@ def test_save_serialises_enum_action_configs(tmp_path):
 def test_save_creates_parent_directory(tmp_path):
     """Nested target directories must still be created — pin
     ``mkdir(parents=True)`` so the safe-yaml refactor cannot drop it."""
-    Config, get_default_config = _import_config()
+    _Config, get_default_config = _import_config()
     cfg = get_default_config()
     nested = tmp_path / "a" / "b" / "c" / "config.yaml"
     cfg.save(nested)

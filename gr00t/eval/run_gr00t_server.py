@@ -13,20 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 import importlib
 import json
 import os
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+import tyro
 
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.data.types import ModalityConfig
 from gr00t.policy.gr00t_policy import Gr00tPolicy
 from gr00t.policy.replay_policy import ReplayPolicy
 from gr00t.policy.server_client import PolicyServer
-import tyro
-
 
 DEFAULT_MODEL_SERVER_PORT = 5555
 
@@ -38,7 +38,7 @@ def _load_json_modality_configs(config_path: Path) -> dict[str, ModalityConfig]:
     not accepted here — point such users at a .py config instead of letting the
     ``ModalityConfig(**v)`` unpack raise a bare ``TypeError``.
     """
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         raw = json.load(f)
     try:
         return {k: ModalityConfig(**v) for k, v in raw.items()}
@@ -115,9 +115,7 @@ def main(config: ServerConfig):
                 "(ReplayPolicy needs a positive integer to advance episodes)."
             )
         if config.execution_horizon <= 0:
-            raise ValueError(
-                f"--execution-horizon must be positive; got {config.execution_horizon}."
-            )
+            raise ValueError(f"--execution-horizon must be positive; got {config.execution_horizon}.")
 
         modality_configs: dict[str, ModalityConfig] | None = None
         if config.modality_config_path is not None:
@@ -132,9 +130,7 @@ def main(config: ServerConfig):
             elif config_path.suffix == ".json":
                 modality_configs = _load_json_modality_configs(config_path)
             else:
-                raise ValueError(
-                    f"Unsupported modality config format: {config_path.suffix}. Use .py or .json"
-                )
+                raise ValueError(f"Unsupported modality config format: {config_path.suffix}. Use .py or .json")
 
         # For .py configs (or no config path), look up from the registry
         if modality_configs is None:

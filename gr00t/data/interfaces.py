@@ -65,7 +65,6 @@ class BaseProcessor(ProcessorMixin):
     @abstractmethod
     def set_statistics(self, statistics: dict[str, Any], override: bool = False) -> None:
         """Set normalization statistics."""
-        pass
 
     def train(self):
         self.training = True
@@ -90,17 +89,14 @@ class ShardedDataset(ABC):
     @abstractmethod
     def __len__(self) -> int:
         """Return the number of shards."""
-        pass
 
     @abstractmethod
     def get_shard_length(self, idx: int) -> int:
         """Get the length of the shard at index idx."""
-        pass
 
     @abstractmethod
     def get_shard(self, idx: int) -> list:
         """Get the shard at index idx."""
-        pass
 
     def set_processor(self, processor: BaseProcessor):
         self.processor = processor

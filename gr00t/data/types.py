@@ -58,16 +58,14 @@ class VLAStepData:
 
     # Core data
     images: dict[str, list[np.ndarray]]  # view_name -> list[np.ndarray] (for temporal stacking)
-    states: dict[
-        str, np.ndarray
-    ]  # state_name -> np.ndarray (dim,) for single step or (horizon, dim) for trajectory
+    states: dict[str, np.ndarray]  # state_name -> np.ndarray (dim,) for single step or (horizon, dim) for trajectory
     actions: dict[str, np.ndarray]  # action_name -> np.ndarray (horizon, dim) for action chunk
     masks: dict[str, list[np.ndarray]] | None = None  # view_name -> list[np.ndarray] (H, W)
     text: str | None = None  # Optional task description or instruction
-    embodiment: EmbodimentTag = (
-        EmbodimentTag.NEW_EMBODIMENT
-    )  # Optional embodiment tag for cross-embodiment training
-    is_demonstration: bool = False  # Whether the step is a demonstration. If True, no loss should be computed for this step.
+    embodiment: EmbodimentTag = EmbodimentTag.NEW_EMBODIMENT  # Optional embodiment tag for cross-embodiment training
+    is_demonstration: bool = (
+        False  # Whether the step is a demonstration. If True, no loss should be computed for this step.
+    )
 
     # Flexible metadata that can be extended by users
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -103,11 +101,7 @@ class ModalityConfig:
         """Validate fields and set default values."""
         if self.delta_indices is None or not isinstance(self.delta_indices, list):
             raise ValueError(f"delta_indices must be a non-None list, got {self.delta_indices!r}")
-        if (
-            self.modality_keys is None
-            or not isinstance(self.modality_keys, list)
-            or len(self.modality_keys) == 0
-        ):
+        if self.modality_keys is None or not isinstance(self.modality_keys, list) or len(self.modality_keys) == 0:
             raise ValueError(f"modality_keys must be a non-empty list, got {self.modality_keys!r}")
         if self.action_configs is not None:
             assert len(self.action_configs) == len(self.modality_keys), (

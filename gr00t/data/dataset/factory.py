@@ -33,13 +33,9 @@ class DatasetFactory:
     def __init__(self, config: Config):
         self.config = config
 
-    def build(
-        self, processor: BaseProcessor
-    ) -> tuple[ShardedMixtureDataset, ShardedMixtureDataset | None]:
+    def build(self, processor: BaseProcessor) -> tuple[ShardedMixtureDataset, ShardedMixtureDataset | None]:
         """Build the dataset. Returns a tuple of (train_dataset, eval_dataset)."""
-        assert self.config.training.eval_strategy == "no", (
-            "Sharded dataset does not support evaluation sets"
-        )
+        assert self.config.training.eval_strategy == "no", "Sharded dataset does not support evaluation sets"
 
         all_datasets = []
         all_weights = []

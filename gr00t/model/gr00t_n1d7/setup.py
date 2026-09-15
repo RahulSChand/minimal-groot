@@ -98,9 +98,7 @@ class Gr00tN1d7Pipeline(ModelPipeline):
             mask_token_missing = any("mask_token" in key for key in missing_keys)
             if mask_token_missing and model.action_head.mask_token is not None:
                 with torch.no_grad():
-                    model.action_head.mask_token.data.copy_(
-                        0.02 * torch.randn_like(model.action_head.mask_token)
-                    )
+                    model.action_head.mask_token.data.copy_(0.02 * torch.randn_like(model.action_head.mask_token))
                 logging.info("mask_token not in checkpoint - initialized")
 
             unexpected_keys = loading_info.get("unexpected_keys", [])
@@ -134,9 +132,7 @@ class Gr00tN1d7Pipeline(ModelPipeline):
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logging.info(f"Total parameters: {total_params:,}")
-        logging.info(
-            f"Trainable parameters: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)"
-        )
+        logging.info(f"Trainable parameters: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)")
         logging.debug(f"Model architecture: {model}")
 
         return model

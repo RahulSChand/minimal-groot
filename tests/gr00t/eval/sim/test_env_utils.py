@@ -22,12 +22,13 @@ Covers all 10 supported sim benchmarks, including fixes for:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 import re
+from pathlib import Path
+
+import pytest
 
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.eval.sim.env_utils import ENV_PREFIX_TO_EMBODIMENT_TAG, get_embodiment_tag_from_env_name
-import pytest
 
 
 class TestEnvPrefixMapping:
@@ -192,10 +193,7 @@ class TestRegisteredPrefixClosure:
                 elif isinstance(node, ast.Assign):
                     candidates = (
                         [node.value]
-                        if any(
-                            isinstance(t, ast.Name) and t.id in {"id", "id_name"}
-                            for t in node.targets
-                        )
+                        if any(isinstance(t, ast.Name) and t.id in {"id", "id_name"} for t in node.targets)
                         else []
                     )
                 else:

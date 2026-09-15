@@ -13,13 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example commands:
+
+NOTE: provide --model_path to load up the model checkpoint in this script,
+        else it will use the default host and port via RobotInferenceClient
+
+"""
+
+import logging
+import re
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
-import logging
 from pathlib import Path
-import re
 from typing import Any
-import warnings
+
+import numpy as np
+import pandas as pd
+import tyro
+from matplotlib import pyplot as plt
 
 from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
 from gr00t.data.dataset.sharded_single_step_dataset import extract_step_data
@@ -29,21 +42,8 @@ from gr00t.eval._horizon_contract import PolicyHorizonSpec, migrate_deprecated_a
 from gr00t.policy import BasePolicy
 from gr00t.policy.gr00t_policy import Gr00tPolicy
 from gr00t.policy.server_client import PolicyClient
-from matplotlib import pyplot as plt
-import numpy as np
-import pandas as pd
-import tyro
-
 
 warnings.simplefilter("ignore", category=FutureWarning)
-
-"""
-Example commands:
-
-NOTE: provide --model_path to load up the model checkpoint in this script,
-        else it will use the default host and port via RobotInferenceClient
-
-"""
 
 
 def plot_trajectory_results(
@@ -147,24 +147,18 @@ def evaluate_single_trajectory(
     traj = loader[traj_id]
     traj_length = len(traj)
     actual_steps = min(steps, traj_length)
-    logging.info(
-        f"Using {actual_steps} steps (requested: {steps}, trajectory length: {traj_length})"
-    )
+    logging.info(f"Using {actual_steps} steps (requested: {steps}, trajectory length: {traj_length})")
 
     pred_action_across_time = []
 
     # Extract state and action keys separately and sort for consistent order
     state_keys = loader.modality_configs["state"].modality_keys
-    action_keys = (
-        loader.modality_configs["action"].modality_keys if modality_keys is None else modality_keys
-    )
+    action_keys = loader.modality_configs["action"].modality_keys if modality_keys is None else modality_keys
 
     # Fail fast if the open-loop stride doesn't fit the model's predicted chunk
     # (also rejects a non-contiguous action window, which the linear indexing
     # below would silently mis-execute).
-    PolicyHorizonSpec.from_modality_config(
-        loader.modality_configs, n_action_steps=execution_horizon
-    )
+    PolicyHorizonSpec.from_modality_config(loader.modality_configs, n_action_steps=execution_horizon)
 
     modality_configs = deepcopy(loader.modality_configs)
     modality_configs.pop("action")
@@ -185,10 +179,7 @@ def evaluate_single_trajectory(
             # NOTE: concat_pred_action = action[f"action.{modality_keys[0]}"][j]
             # the np.atleast_1d is to ensure the action is a 1D array, handle where single value is returned
             concat_pred_action = np.concatenate(
-                [
-                    np.atleast_1d(np.atleast_1d(action_chunk[f"action.{key}"])[j])
-                    for key in action_keys
-                ],
+                [np.atleast_1d(np.atleast_1d(action_chunk[f"action.{key}"])[j]) for key in action_keys],
                 axis=0,
             )
             pred_action_across_time.append(concat_pred_action)
@@ -201,9 +192,7 @@ def evaluate_single_trajectory(
 
     # plot the joints
     state_joints_across_time = extract_state_joints(traj, [f"state.{key}" for key in state_keys])
-    gt_action_across_time = extract_state_joints(traj, [f"action.{key}" for key in action_keys])[
-        :actual_steps
-    ]
+    gt_action_across_time = extract_state_joints(traj, [f"action.{key}" for key in action_keys])[:actual_steps]
     pred_action_across_time = np.array(pred_action_across_time)[:actual_steps]
     assert gt_action_across_time.shape == pred_action_across_time.shape, (
         f"gt_action: {gt_action_across_time.shape}, pred_action: {pred_action_across_time.shape}"
@@ -291,9 +280,7 @@ def main(args: ArgsConfig):
                 global_step = int(match.group(1))
                 logging.info(f"Extracted global_step {global_step} from checkpoint path")
             except ValueError:
-                logging.warning(
-                    f"Could not parse step number from checkpoint path: {local_model_path}"
-                )
+                logging.warning(f"Could not parse step number from checkpoint path: {local_model_path}")
         else:
             logging.warning(f"Could not find checkpoint-<step> pattern in path: {local_model_path}")
 

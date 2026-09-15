@@ -13,14 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 import io
 import shutil
+from collections import OrderedDict
 
-from gr00t.eval.sim.wrapper.video_recording_wrapper import VideoRecordingWrapper
 import gymnasium as gym
 import numpy as np
 import pytest
+
+from gr00t.eval.sim.wrapper.video_recording_wrapper import VideoRecordingWrapper
 
 
 def _frame(value: int) -> np.ndarray:

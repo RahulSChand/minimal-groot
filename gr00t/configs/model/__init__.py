@@ -14,11 +14,10 @@
 # limitations under the License.
 
 import importlib
-from pathlib import Path
 import typing
+from pathlib import Path
 
 import tyro
-
 
 MODEL_CONFIG_TYPES: dict[str, type] = {}
 

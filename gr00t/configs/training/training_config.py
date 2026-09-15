@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from typing import Optional
 import warnings
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -24,7 +23,7 @@ class TrainingConfig:
 
     # Output
     output_dir: str = "./outputs"
-    experiment_name: Optional[str] = None
+    experiment_name: str | None = None
 
     # Basic training
     max_steps: int = 30000  # this will override num_epochs
@@ -34,7 +33,7 @@ class TrainingConfig:
     gradient accumulation. See :attr:`accumulated_batch_size` for the
     post-accumulation per-optimizer-step value."""
 
-    per_gpu_batch_size: Optional[int] = None
+    per_gpu_batch_size: int | None = None
     """Deprecated. When set, overrides ``global_batch_size`` as the per-GPU batch."""
 
     gradient_accumulation_steps: int = 1
@@ -54,7 +53,7 @@ class TrainingConfig:
     # 'paged_adamw_8bit' (requires bitsandbytes), 'adafactor', etc.
     optim: str = "adamw_torch_fused"
 
-    start_from_checkpoint: Optional[str] = None
+    start_from_checkpoint: str | None = None
     skip_weight_loading: bool = False  # skip loading checkpoint weights (architecture only)
 
     # Mixed precision
@@ -136,7 +135,7 @@ class TrainingConfig:
     open_loop_eval_steps_per_traj: int = 100
     """Number of steps to evaluate per trajectory."""
 
-    open_loop_eval_plot_indices: Optional[list[int]] = None
+    open_loop_eval_plot_indices: list[int] | None = None
     """List of action indices to plot. If None, plots all indices."""
 
     @property
@@ -150,14 +149,12 @@ class TrainingConfig:
 
     def __post_init__(self) -> None:
         if self.gradient_accumulation_steps < 1:
-            raise ValueError(
-                f"gradient_accumulation_steps must be >= 1, got {self.gradient_accumulation_steps}"
-            )
+            raise ValueError(f"gradient_accumulation_steps must be >= 1, got {self.gradient_accumulation_steps}")
         if self.gradient_accumulation_steps > 1 and self.per_gpu_batch_size is None:
             warnings.warn(
                 f"global_batch_size={self.global_batch_size} is pre-accumulation; "
                 f"accumulated_batch_size={self.accumulated_batch_size} "
-                f"(× gradient_accumulation_steps={self.gradient_accumulation_steps}).",
+                f"(* gradient_accumulation_steps={self.gradient_accumulation_steps}).",
                 stacklevel=2,
             )
 

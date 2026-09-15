@@ -15,7 +15,6 @@
 
 import os
 
-
 _FALSEY_ENV_VALUES = {"", "0", "false", "no", "off"}
 
 
@@ -246,9 +245,7 @@ def _hf_local_first_call(
     false-miss rate in CI Job 308778931).
     """
     if skip_model_weights and _env_flag_enabled("GROOT_SKIP_HF_MODEL_WEIGHTS"):
-        return _hf_no_weight_model_call(
-            orig_func, klass, pretrained_model_name_or_path, *args, **kwargs
-        )
+        return _hf_no_weight_model_call(orig_func, klass, pretrained_model_name_or_path, *args, **kwargs)
 
     name_str = str(pretrained_model_name_or_path)
     if os.path.isdir(name_str):

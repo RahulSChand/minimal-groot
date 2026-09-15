@@ -14,10 +14,8 @@
 # limitations under the License.
 
 import math
-from typing import List, Optional, Tuple
 
 import numpy as np
-
 
 _TORCHCODEC_INSTALL_HINT = (
     "torchcodec is required for video decoding. Install it via the platform "
@@ -61,7 +59,7 @@ def _get_video_decoder_cls():
     return VideoDecoder
 
 
-def _build_decoder(video_path: str, decoder_kwargs: Optional[dict]):
+def _build_decoder(video_path: str, decoder_kwargs: dict | None):
     video_decoder_cls = _get_video_decoder_cls()
     kwargs = {**_DEFAULT_DECODER_KWARGS, **(decoder_kwargs or {})}
     return video_decoder_cls(video_path, **kwargs)
@@ -70,7 +68,7 @@ def _build_decoder(video_path: str, decoder_kwargs: Optional[dict]):
 def get_frames_by_indices(
     video_path: str,
     indices: list[int] | np.ndarray,
-    decoder_kwargs: Optional[dict] = None,
+    decoder_kwargs: dict | None = None,
 ) -> np.ndarray:
     decoder = _build_decoder(video_path, decoder_kwargs)
     return decoder.get_frames_at(indices=indices).data.numpy()
@@ -79,7 +77,7 @@ def get_frames_by_indices(
 def get_frames_by_timestamps(
     video_path: str,
     timestamps: list[float] | np.ndarray,
-    decoder_kwargs: Optional[dict] = None,
+    decoder_kwargs: dict | None = None,
 ) -> np.ndarray:
     """Get frames from a video at specified timestamps.
 
@@ -108,9 +106,7 @@ def get_frames_by_timestamps(
     if np.any(invalid_mask):
         invalid_indices = np.where(invalid_mask)[0]
         invalid_timestamps = timestamps[invalid_indices]
-        raise ValueError(
-            f"Try to read invalid timestamps {invalid_timestamps} from video {video_path} (FPS: {fps})"
-        )
+        raise ValueError(f"Try to read invalid timestamps {invalid_timestamps} from video {video_path} (FPS: {fps})")
 
     timestamps = closest_timestamps
     return decoder.get_frames_played_at(seconds=timestamps).data.numpy()
@@ -118,7 +114,7 @@ def get_frames_by_timestamps(
 
 def get_all_frames(
     video_path: str,
-    decoder_kwargs: Optional[dict] = None,
+    decoder_kwargs: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Get all frames from a video.
 
@@ -131,13 +127,13 @@ def get_all_frames(
 
 
 def get_accumulate_timestamp_idxs(
-    timestamps: List[float],
+    timestamps: list[float],
     start_time: float,
     dt: float,
     eps: float = 1e-5,
-    next_global_idx: Optional[int] = 0,
+    next_global_idx: int | None = 0,
     allow_negative=False,
-) -> Tuple[List[int], List[int], int]:
+) -> tuple[list[int], list[int], int]:
     """
     For each dt window, choose the first timestamp in the window.
     Assumes timestamps sorted. One timestamp might be chosen multiple times due to dropped frames.
@@ -149,8 +145,8 @@ def get_accumulate_timestamp_idxs(
     global_idxs: the global index of each chosen timestamp
     next_global_idx: used for next call.
     """
-    local_idxs = list()
-    global_idxs = list()
+    local_idxs = []
+    global_idxs = []
     for local_idx, ts in enumerate(timestamps):
         # add eps * dt to timestamps so that when ts == start_time + k * dt
         # is always recorded as kth element (avoiding floating point errors)

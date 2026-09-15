@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-import json
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import yaml
 
@@ -82,7 +82,7 @@ ModelUnionType = create_model_union_type()
 class Config:
     """Complete configuration."""
 
-    load_config_path: Optional[str] = None
+    load_config_path: str | None = None
     model: ModelUnionType = field(default_factory=lambda: Gr00tN1d7Config())
     data: DataConfig = field(default_factory=DataConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
@@ -125,7 +125,7 @@ class Config:
         if "data" in data:
             self.data = DataConfig(**data["data"])
             # Ensure nested datasets are converted to dataclass instances
-            converted: List[SingleDatasetConfig] = []
+            converted: list[SingleDatasetConfig] = []
             for ds in self.data.datasets:
                 if isinstance(ds, dict):
                     converted.append(SingleDatasetConfig(**ds))

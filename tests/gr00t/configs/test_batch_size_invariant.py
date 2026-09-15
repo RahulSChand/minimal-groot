@@ -14,14 +14,15 @@
 # limitations under the License.
 
 """``accumulated_batch_size`` must equal what HuggingFace ``Trainer`` consumes
-per optimizer step (``per_device × num_gpus × gradient_accumulation_steps``)."""
+per optimizer step (``per_device * num_gpus * gradient_accumulation_steps``)."""
 
 from __future__ import annotations
 
 import warnings
 
-from gr00t.configs.training.training_config import TrainingConfig
 import pytest
+
+from gr00t.configs.training.training_config import TrainingConfig
 
 
 @pytest.mark.parametrize(

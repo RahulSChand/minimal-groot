@@ -22,13 +22,14 @@ legacy pickle-based path must be rejected with a migration error."""
 
 from __future__ import annotations
 
+import numpy as np
+import pytest
+
 from gr00t.utils.initial_actions import (
     INITIAL_ACTIONS_FILENAME,
     load_initial_actions,
     save_initial_actions,
 )
-import numpy as np
-import pytest
 
 
 def _sample_payload() -> list[dict[str, dict[str, np.ndarray]]]:

@@ -14,15 +14,15 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Tuple
+from typing import Any
 
 import torch
+import torch.nn.functional as F
+import tree
 from torch import nn
 from torch.distributions import Beta
-import torch.nn.functional as F
 from transformers import AutoConfig, AutoModel, PreTrainedModel
 from transformers.feature_extraction_utils import BatchFeature
-import tree
 
 from gr00t.configs.model.gr00t_n1d7 import Gr00tN1d7Config
 from gr00t.model.modules.dit import AlternateVLDiT, DiT, SelfAttentionTransformer
@@ -30,7 +30,6 @@ from gr00t.model.modules.embodiment_conditioned_mlp import (
     CategorySpecificMLP,
     MultiEmbodimentActionEncoder,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +80,7 @@ class Gr00tN1d7ActionHead(nn.Module):
             output_dim=self.action_dim,
         )
 
-        self.vlln = (
-            nn.LayerNorm(config.backbone_embedding_dim) if config.use_vlln else nn.Identity()
-        )
+        self.vlln = nn.LayerNorm(config.backbone_embedding_dim) if config.use_vlln else nn.Identity()
 
         vl_self_attention_cfg = getattr(config, "vl_self_attention_cfg", None)
         if vl_self_attention_cfg and vl_self_attention_cfg.get("num_layers", 0) > 0:
@@ -114,13 +111,9 @@ class Gr00tN1d7ActionHead(nn.Module):
             torch.tensor(float(config.noise_beta_beta), dtype=torch.float32, device="cpu"),
         )
         self.num_timestep_buckets = config.num_timestep_buckets
-        self.set_trainable_parameters(
-            config.tune_projector, config.tune_diffusion_model, config.tune_vlln
-        )
+        self.set_trainable_parameters(config.tune_projector, config.tune_diffusion_model, config.tune_vlln)
 
-    def set_trainable_parameters(
-        self, tune_projector: bool, tune_diffusion_model: bool, tune_vlln: bool
-    ):
+    def set_trainable_parameters(self, tune_projector: bool, tune_diffusion_model: bool, tune_vlln: bool):
         self.tune_projector = tune_projector
         self.tune_diffusion_model = tune_diffusion_model
         self.tune_vlln = tune_vlln
@@ -218,10 +211,7 @@ class Gr00tN1d7ActionHead(nn.Module):
 
         # Dropout state features (training only): zero out dropped states.
         if self.training and self.state_dropout_prob > 0:
-            do_dropout = (
-                torch.rand(state_features.shape[0], device=state_features.device)
-                < self.state_dropout_prob
-            )
+            do_dropout = torch.rand(state_features.shape[0], device=state_features.device) < self.state_dropout_prob
             do_dropout = do_dropout[:, None, None].to(dtype=state_features.dtype)
             state_features = state_features * (1 - do_dropout)
 
@@ -285,9 +275,7 @@ class Gr00tN1d7ActionHead(nn.Module):
             "state_features": state_features,
         }
 
-    def _encode_features(
-        self, backbone_output: BatchFeature, action_input: BatchFeature
-    ) -> BatchFeature:
+    def _encode_features(self, backbone_output: BatchFeature, action_input: BatchFeature) -> BatchFeature:
         """
         Encode features for the action head.
 
@@ -372,8 +360,7 @@ class Gr00tN1d7ActionHead(nn.Module):
             # Use previous action instead of pure noise to do inpainting
             actions[:, : options["rtc_overlap_steps"], :] = action_input["action"][
                 :,
-                action_horizon_before_padding
-                - options["rtc_overlap_steps"] : action_horizon_before_padding,
+                action_horizon_before_padding - options["rtc_overlap_steps"] : action_horizon_before_padding,
                 :,
             ]
             vel_strength[:, : options["rtc_frozen_steps"], :] = 0.0
@@ -383,9 +370,7 @@ class Gr00tN1d7ActionHead(nn.Module):
             t = torch.linspace(0.0, 1.0, intermediate_steps + 2, device=device)
             ramp = 1 - torch.exp(-options["rtc_ramp_rate"] * t)
             ramp = ramp / ramp[-1].clamp_min(1e-8)  # normalize to [0,1]
-            ramp = ramp[
-                1:-1
-            ]  # we will only take the middle part of the ramp, ignore the 0.0 and 1.0
+            ramp = ramp[1:-1]  # we will only take the middle part of the ramp, ignore the 0.0 and 1.0
             # Apply ramp to the intermediate steps [batch, intermediate_steps, action_dim]
             vel_strength[
                 :,
@@ -399,9 +384,7 @@ class Gr00tN1d7ActionHead(nn.Module):
             t_discretized = int(t_cont * self.num_timestep_buckets)
 
             # Embed noised action trajectory.
-            timesteps_tensor = torch.full(
-                size=(batch_size,), fill_value=t_discretized, device=device
-            )
+            timesteps_tensor = torch.full(size=(batch_size,), fill_value=t_discretized, device=device)
             action_features = self.action_encoder(actions, timesteps_tensor, embodiment_id)
             # Add position embedding.
             if self.config.add_pos_embed:
@@ -550,7 +533,7 @@ class Gr00tN1d7(PreTrainedModel):
             transformers_loading_kwargs=transformers_loading_kwargs,
         )
 
-    def prepare_input(self, inputs: dict) -> Tuple[BatchFeature, BatchFeature]:
+    def prepare_input(self, inputs: dict) -> tuple[BatchFeature, BatchFeature]:
         """Prepare inputs for backbone and action head."""
 
         # NOTE -- currently the eval code doesn't use collator, so we need to add it here

@@ -23,12 +23,12 @@ this module — see ``examples/DROID/main_gr00t.py``.)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import sys
-from typing import Any, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-
 
 _DEPRECATED_HORIZON_FLAGS = ("--action-horizon", "--action_horizon")
 
@@ -103,7 +103,7 @@ class PolicyHorizonSpec:
         policy: Any,
         *,
         n_action_steps: int | None = None,
-    ) -> "PolicyHorizonSpec":
+    ) -> PolicyHorizonSpec:
         """Resolve the spec from a policy exposing ``get_modality_config``.
 
         Args:
@@ -124,7 +124,7 @@ class PolicyHorizonSpec:
         modality_config: dict[str, Any],
         *,
         n_action_steps: int | None = None,
-    ) -> "PolicyHorizonSpec":
+    ) -> PolicyHorizonSpec:
         """Resolve the spec from a raw ``{modality: ModalityConfig}`` dict.
 
         ``n_action_steps`` is the open-loop execution length (see the

@@ -44,16 +44,11 @@ def extract_step_data(
             if f"{modality}.{key}" in episode_data.columns:
                 modality_data = episode_data[f"{modality}.{key}"].iloc[indices_to_load]
             else:
-                raise KeyError(
-                    f"{modality}.{key} not found in episode data, available keys: {episode_data.columns}"
-                )
+                raise KeyError(f"{modality}.{key} not found in episode data, available keys: {episode_data.columns}")
             if modality in ["state", "action"]:
                 # Stack arrays for numerical modalities
                 step_data[modality][key] = np.vstack(
-                    [
-                        np.array(modality_data.iloc[i]).astype(np.float32)
-                        for i in range(len(modality_data))
-                    ]
+                    [np.array(modality_data.iloc[i]).astype(np.float32) for i in range(len(modality_data))]
                 )
             else:
                 # Keep as lists for other modalities (video, language)
@@ -66,7 +61,7 @@ def extract_step_data(
     action_data = step_data.get("action", {})
     language_data = step_data.get("language", {})
     assert len(language_data) == 1, f"Expected 1 language, got {len(language_data)}"
-    text = language_data[list(language_data.keys())[0]][0]
+    text = language_data[next(iter(language_data.keys()))][0]
 
     vla_step_data = VLAStepData(
         images=video_data,
@@ -175,9 +170,7 @@ class ShardedSingleStepDataset(ShardedDataset):
         shuffled_episode_indices = self.rng.permutation(len(self.episode_loader.episode_lengths))
         num_splits = int(1 / self.episode_sampling_rate)
 
-        assert len(shuffled_episode_indices) > 0, (
-            f"No valid trajectories found for dataset {self.dataset_path}"
-        )
+        assert len(shuffled_episode_indices) > 0, f"No valid trajectories found for dataset {self.dataset_path}"
 
         # Build non-empty episode sub-sequences first. Small datasets can have fewer
         # non-empty sub-sequences than the shard count implied by shard_size.
@@ -219,9 +212,7 @@ class ShardedSingleStepDataset(ShardedDataset):
             shard_lengths[shard_index] += len(split_step_indices)
 
         # Validate shard creation
-        assert all(shard_lengths[i] > 0 for i in range(num_shards)), (
-            "All shards must have length greater than 0"
-        )
+        assert all(shard_lengths[i] > 0 for i in range(num_shards)), "All shards must have length greater than 0"
 
         print(f"Generated {num_shards} shards for dataset {self.dataset_path}")
         print(

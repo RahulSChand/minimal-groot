@@ -15,8 +15,9 @@
 
 """Tests for gated-backbone error detection in qwen3_backbone."""
 
-from gr00t.model.modules.qwen3_backbone import _GATED_BACKBONE_HINT, _is_gated_repo_error
 import pytest
+
+from gr00t.model.modules.qwen3_backbone import _GATED_BACKBONE_HINT, _is_gated_repo_error
 
 
 @pytest.mark.parametrize(

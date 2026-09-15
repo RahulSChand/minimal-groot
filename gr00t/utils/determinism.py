@@ -36,7 +36,6 @@ import random
 import numpy as np
 import torch
 
-
 EVAL_SEED_ENV_VAR = "GR00T_EVAL_SEED"
 
 

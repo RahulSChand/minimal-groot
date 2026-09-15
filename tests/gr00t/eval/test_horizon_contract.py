@@ -21,9 +21,10 @@ fake modality config, with no gym / torch / model import.
 
 from dataclasses import dataclass
 
-from gr00t.eval._horizon_contract import PolicyHorizonSpec, migrate_deprecated_action_horizon_argv
 import numpy as np
 import pytest
+
+from gr00t.eval._horizon_contract import PolicyHorizonSpec, migrate_deprecated_action_horizon_argv
 
 
 @dataclass

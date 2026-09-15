@@ -14,8 +14,8 @@
 # limitations under the License.
 
 # Finetune config used for single node post-training.
-from dataclasses import dataclass
 import warnings
+from dataclasses import dataclass
 
 
 @dataclass
@@ -41,8 +41,8 @@ class FinetuneConfig:
 
     modality_config_path: str | None = None
     """
-    Path to a Python file defining the modality configuration for the given embodiment. 
-    If None, use the pre-registered modality config in `gr00t/configs/data/embodiment_configs.py`. 
+    Path to a Python file defining the modality configuration for the given embodiment.
+    If None, use the pre-registered modality config in `gr00t/configs/data/embodiment_configs.py`.
     """
 
     # --- Model Tuning Flags ---
@@ -198,14 +198,12 @@ class FinetuneConfig:
 
     def __post_init__(self) -> None:
         if self.gradient_accumulation_steps < 1:
-            raise ValueError(
-                f"gradient_accumulation_steps must be >= 1, got {self.gradient_accumulation_steps}"
-            )
+            raise ValueError(f"gradient_accumulation_steps must be >= 1, got {self.gradient_accumulation_steps}")
         if self.gradient_accumulation_steps > 1:
             accumulated_batch_size = self.global_batch_size * self.gradient_accumulation_steps
             warnings.warn(
                 f"global_batch_size={self.global_batch_size} is pre-accumulation; "
                 f"accumulated_batch_size={accumulated_batch_size} "
-                f"(× gradient_accumulation_steps={self.gradient_accumulation_steps}).",
+                f"(* gradient_accumulation_steps={self.gradient_accumulation_steps}).",
                 stacklevel=2,
             )

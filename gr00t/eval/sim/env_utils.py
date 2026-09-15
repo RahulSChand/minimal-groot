@@ -15,7 +15,6 @@
 
 from gr00t.data.embodiment_tags import EmbodimentTag
 
-
 # Mapping from gym-registered env_name prefix to EmbodimentTag.
 # The prefix is the part before "/" in env_name (e.g. "libero_sim" from "libero_sim/task").
 # Add new entries here when supporting a new benchmark.

@@ -17,14 +17,15 @@ import json
 import logging
 from pathlib import Path
 
+import numpy as np
+import torch
+from transformers import PreTrainedModel
+
 from gr00t.configs.base_config import Config
 from gr00t.data.collator import BasicDataCollator
 from gr00t.data.dataset.factory import DatasetFactory
 from gr00t.data.interfaces import BaseProcessor
 from gr00t.utils.dist_utils import get_rank, run_or_wait_on_rank0
-import numpy as np
-import torch
-from transformers import PreTrainedModel
 
 
 class ModelPipeline:
@@ -95,9 +96,7 @@ class BasicPipeline(ModelPipeline):
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logging.info(f"Total parameters: {total_params:,}")
-        logging.info(
-            f"Trainable parameters: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)"
-        )
+        logging.info(f"Trainable parameters: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)")
         return model
 
     def _create_dataset(self, save_cfg_dir: Path):

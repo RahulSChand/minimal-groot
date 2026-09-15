@@ -23,12 +23,13 @@ started in a background thread and the client connects on localhost.
 import threading
 import time
 
-from gr00t.data.types import ModalityConfig
-from gr00t.policy.server_client import MsgSerializer, PolicyClient, PolicyServer
 import msgpack
 import numpy as np
 import pytest
 import zmq
+
+from gr00t.data.types import ModalityConfig
+from gr00t.policy.server_client import MsgSerializer, PolicyClient, PolicyServer
 
 
 class MockPolicy:
@@ -109,12 +110,12 @@ class TestPolicyServerClient:
         client, _, _ = server_client
         obs = {"state": {"joint_pos": np.zeros(7, dtype=np.float32)}}
         result = client.call_endpoint("get_action", {"observation": obs})
-        action, info = result
+        action, _info = result
         assert "joint_pos" in action
         np.testing.assert_array_equal(action["joint_pos"], np.zeros(7, dtype=np.float32))
 
     def test_reset(self, server_client):
-        client, _, policy = server_client
+        client, _, _policy = server_client
         result = client.call_endpoint("reset", {"options": None})
         assert result["reset_count"] == 1
         result = client.call_endpoint("reset", {"options": None})
@@ -160,9 +161,7 @@ class TestPolicyServerAuth:
             thread.start()
             time.sleep(0.3)
 
-            with PolicyClient(
-                host="127.0.0.1", port=port, timeout_ms=5000, api_token=token
-            ) as client:
+            with PolicyClient(host="127.0.0.1", port=port, timeout_ms=5000, api_token=token) as client:
                 assert client.ping()
                 client.kill_server()
             thread.join(timeout=3)
@@ -174,15 +173,11 @@ class TestPolicyServerAuth:
             thread.start()
             time.sleep(0.3)
 
-            with PolicyClient(
-                host="127.0.0.1", port=port, timeout_ms=5000, api_token="wrong"
-            ) as client:
+            with PolicyClient(host="127.0.0.1", port=port, timeout_ms=5000, api_token="wrong") as client:
                 with pytest.raises(RuntimeError, match="Unauthorized"):
                     client.call_endpoint("ping", requires_input=False)
 
-                with PolicyClient(
-                    host="127.0.0.1", port=port, timeout_ms=5000, api_token="correct"
-                ) as valid_client:
+                with PolicyClient(host="127.0.0.1", port=port, timeout_ms=5000, api_token="correct") as valid_client:
                     valid_client.kill_server()
                 thread.join(timeout=3)
 
@@ -213,9 +208,7 @@ class TestMsgSerializer:
         payload = io.BytesIO()
         np.save(payload, arr, allow_pickle=False)
 
-        result = MsgSerializer.from_bytes(
-            msgpack.packb({"__ndarray_class__": True, "as_npy": payload.getvalue()})
-        )
+        result = MsgSerializer.from_bytes(msgpack.packb({"__ndarray_class__": True, "as_npy": payload.getvalue()}))
 
         np.testing.assert_array_equal(result, arr)
 
@@ -256,9 +249,7 @@ class TestMsgSerializer:
         # reject it before mnp.decode would call pickle.loads.
         import msgpack_numpy as mnp
 
-        forged = mnp.packb(
-            {b"nd": True, b"kind": b"O", b"type": "|O", b"shape": (1,), b"data": b""}
-        )
+        forged = mnp.packb({b"nd": True, b"kind": b"O", b"type": "|O", b"shape": (1,), b"data": b""})
         with pytest.raises(ValueError, match="object-dtype"):
             MsgSerializer.from_bytes(forged)
 

@@ -28,7 +28,6 @@ from pathlib import Path
 
 import pytest
 
-
 EXPERIMENT_SRC = Path(__file__).resolve().parents[3] / "gr00t" / "experiment" / "experiment.py"
 
 
@@ -60,11 +59,7 @@ def _training_arguments_keywords() -> set[str]:
     """Keyword names passed to the ``TrainingArguments(...)`` call in ``run``."""
     tree = ast.parse(EXPERIMENT_SRC.read_text())
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "TrainingArguments"
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "TrainingArguments":
             return {kw.arg for kw in node.keywords if kw.arg is not None}
     raise AssertionError("TrainingArguments(...) call not found in experiment.py")
 

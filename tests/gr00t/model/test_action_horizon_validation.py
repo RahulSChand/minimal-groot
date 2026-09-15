@@ -24,7 +24,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 processing = pytest.importorskip("gr00t.model.gr00t_n1d7.processing_gr00t_n1d7")
 validate_action_horizons = processing.validate_action_horizons
 

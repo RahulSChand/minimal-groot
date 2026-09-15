@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from dataclasses import MISSING, asdict, dataclass, field, is_dataclass
 from enum import Enum
-import json
 from pathlib import Path
 
 import torch
@@ -64,9 +64,7 @@ class Gr00tN1d7Config(PretrainedConfig):
     # Extra augmentation config (mask-based and others).
     extra_augmentation_config: dict | None = None
     formalize_language: bool = True
-    apply_sincos_state_encoding: bool = (
-        False  # Global flag to enable per-embodiment sin/cos encoding
-    )
+    apply_sincos_state_encoding: bool = False  # Global flag to enable per-embodiment sin/cos encoding
     use_percentiles: bool = True
     use_relative_action: bool = False
 

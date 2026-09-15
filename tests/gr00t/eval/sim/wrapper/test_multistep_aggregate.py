@@ -22,9 +22,10 @@ first ``step()``) with both the bad input and the allowed set named.
 
 from __future__ import annotations
 
-from gr00t.eval._horizon_contract import PolicyHorizonSpec
 import numpy as np
 import pytest
+
+from gr00t.eval._horizon_contract import PolicyHorizonSpec
 
 
 def _import_module():

@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 import functools
 import io
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 import msgpack
 import msgpack_numpy as mnp
@@ -51,9 +52,7 @@ class MsgSerializer:
 
     @staticmethod
     def from_bytes(data: bytes) -> Any:
-        object_hook = functools.partial(
-            MsgSerializer._safe_decode, chain=MsgSerializer._decode_custom
-        )
+        object_hook = functools.partial(MsgSerializer._safe_decode, chain=MsgSerializer._decode_custom)
         return msgpack.unpackb(data, object_hook=object_hook, raw=False)
 
     @staticmethod
@@ -78,9 +77,7 @@ class MsgSerializer:
             if marker:
                 payload = obj.get("as_npy", obj.get(b"as_npy"))
                 if payload is None:
-                    raise ValueError(
-                        "Malformed ndarray payload: marker present but 'as_npy' missing"
-                    )
+                    raise ValueError("Malformed ndarray payload: marker present but 'as_npy' missing")
                 return np.load(io.BytesIO(payload), allow_pickle=False)
 
         # Refuse object-dtype ndarray payloads before mnp.decode would call
@@ -157,7 +154,7 @@ class PolicyServer:
         policy: BasePolicy,
         host: str = "*",
         port: int = 5555,
-        api_token: str = None,
+        api_token: str | None = None,
     ):
         self.policy = policy
         self.host = host
@@ -248,9 +245,7 @@ class PolicyServer:
 
                 # Validate token before processing request
                 if not self._validate_token(request):
-                    self.socket.send(
-                        MsgSerializer.to_bytes({"error": "Unauthorized: Invalid API token"})
-                    )
+                    self.socket.send(MsgSerializer.to_bytes({"error": "Unauthorized: Invalid API token"}))
                     continue
 
                 endpoint = request.get("endpoint", "get_action")
@@ -259,11 +254,7 @@ class PolicyServer:
                     raise ValueError(f"Unknown endpoint: {endpoint}")
 
                 handler = self._endpoints[endpoint]
-                result = (
-                    handler.handler(**request.get("data", {}))
-                    if handler.requires_input
-                    else handler.handler()
-                )
+                result = handler.handler(**request.get("data", {})) if handler.requires_input else handler.handler()
                 self.socket.send(MsgSerializer.to_bytes(result))
             except Exception as e:
                 print(f"Error in server: {e}")
@@ -273,7 +264,7 @@ class PolicyServer:
                 self.socket.send(MsgSerializer.to_bytes({"error": str(e)}))
 
     @staticmethod
-    def start_server(policy: BasePolicy, port: int, host: str = "*", api_token: str = None):
+    def start_server(policy: BasePolicy, port: int, host: str = "*", api_token: str | None = None):
         with PolicyServer(policy, host=host, port=port, api_token=api_token) as server:
             server.run()
 
@@ -284,7 +275,7 @@ class PolicyClient(BasePolicy):
         host: str = "localhost",
         port: int = 5555,
         timeout_ms: int = 15000,
-        api_token: str = None,
+        api_token: str | None = None,
         strict: bool = False,
     ):
         super().__init__(strict=strict)
@@ -317,9 +308,7 @@ class PolicyClient(BasePolicy):
         """
         self.call_endpoint("kill", requires_input=False)
 
-    def call_endpoint(
-        self, endpoint: str, data: dict | None = None, requires_input: bool = True
-    ) -> Any:
+    def call_endpoint(self, endpoint: str, data: dict | None = None, requires_input: bool = True) -> Any:
         """
         Call an endpoint on the server.
 
@@ -387,9 +376,7 @@ class PolicyClient(BasePolicy):
     def _get_action(
         self, observation: dict[str, Any], options: dict[str, Any] | None = None
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        response = self.call_endpoint(
-            "get_action", {"observation": observation, "options": options}
-        )
+        response = self.call_endpoint("get_action", {"observation": observation, "options": options})
         return tuple(response)  # Convert list (from msgpack) to tuple of (action, info)
 
     def reset(self, options: dict[str, Any] | None = None) -> dict[str, Any]:

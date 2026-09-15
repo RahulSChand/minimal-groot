@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from concurrent.futures import Future, ThreadPoolExecutor
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 
 import numpy as np
 import torch
@@ -54,7 +54,7 @@ def merge_statistics(
     information across all datasets.
 
     The weighted variance computation uses the formula:
-    Var_combined = Σ(w_i * (σ_i² + μ_i²)) - (Σ(w_i * μ_i))²
+    Var_combined = sum(w_i * (std_i**2 + mean_i**2)) - sum(w_i * mean_i)**2
 
     Args:
         per_dataset_stats: List of per-dataset statistics dictionaries.
@@ -85,11 +85,7 @@ def merge_statistics(
         if not isinstance(modality_stats, dict) or "mean" not in modality_stats:
             continue
         # Get dimensionality from first dataset (assumed consistent)
-        dim = (
-            [len(modality_stats["mean"])]
-            if not is_relative_stats
-            else np.array(modality_stats["mean"]).shape
-        )
+        dim = [len(modality_stats["mean"])] if not is_relative_stats else np.array(modality_stats["mean"]).shape
 
         # Initialize accumulators for weighted mean and variance computation
         weighted_means = np.zeros(dim)
@@ -296,9 +292,7 @@ class ShardedMixtureDataset(IterableDataset):
 
         # Configure processor and datasets with merged statistics
         self.global_stats = stats_by_emb
-        self.processor.set_statistics(
-            self.global_stats, override=self.override_pretraining_statistics
-        )
+        self.processor.set_statistics(self.global_stats, override=self.override_pretraining_statistics)
         for ds in self.datasets:
             ds.set_processor(self.processor)
 
@@ -325,15 +319,11 @@ class ShardedMixtureDataset(IterableDataset):
             # Compute average shard sizes for normalization
             average_shard_sizes = []
             for dataset in self.datasets:
-                average_shard_size = sum(
-                    dataset.get_shard_length(i) for i in range(len(dataset))
-                ) / len(dataset)
+                average_shard_size = sum(dataset.get_shard_length(i) for i in range(len(dataset))) / len(dataset)
                 average_shard_sizes.append(average_shard_size)
 
             # Normalize weights by shard sizes to ensure fair sampling
-            normalized_weights = np.array(
-                [w / s for w, s in zip(self.weights, average_shard_sizes)]
-            )
+            normalized_weights = np.array([w / s for w, s in zip(self.weights, average_shard_sizes)])
             normalized_weights = normalized_weights / normalized_weights.sum()
 
             # Sample datasets according to normalized weights
@@ -466,13 +456,9 @@ class ShardedMixtureDataset(IterableDataset):
             self.curr_shard_index = -1
 
         print(f"Rank {self.rank}, Worker {self.worker_id}: Caching shard...")
-        next_dataset_idx, next_shard_idx = self.worker_shard_sampling_schedule[
-            self.curr_shard_index + 1
-        ]
+        next_dataset_idx, next_shard_idx = self.worker_shard_sampling_schedule[self.curr_shard_index + 1]
         # Submit background loading job
-        self._cache_job = self._executor.submit(
-            self.datasets[next_dataset_idx].get_shard, next_shard_idx
-        )
+        self._cache_job = self._executor.submit(self.datasets[next_dataset_idx].get_shard, next_shard_idx)
 
     def finish_cache_shard(self):
         """Wait for the background caching job to complete and retrieve the shard."""
@@ -559,11 +545,11 @@ class ShardedMixtureDataset(IterableDataset):
             print(f"{dataset_path:<60} {length:<10,} {mix_ratio:<12.2f}")
 
         # Print additional metadata
-        embodiments = set(
+        embodiments = {
             ds.embodiment_tag.value
             for ds in self.datasets
             if hasattr(ds, "embodiment_tag")  # type: ignore
-        )
+        }
         print(f"Embodiments: {', '.join(sorted(embodiments))}")
         print(f"Number of datasets: {len(self.datasets)}")
         print("=" * 100)

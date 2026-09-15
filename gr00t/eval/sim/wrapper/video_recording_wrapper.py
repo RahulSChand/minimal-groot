@@ -13,16 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
 import os
-from pathlib import Path
 import subprocess
 import uuid
+from collections.abc import Sequence
+from pathlib import Path
 
 import cv2
 import gymnasium as gym
 import numpy as np
-
 
 # Seconds to wait for ffmpeg to flush and exit before escalating to kill().
 _FFMPEG_CLOSE_GRACE_SECONDS = 30.0
@@ -184,8 +183,7 @@ class VideoRecordingWrapper(gym.Wrapper):
                     process.kill()
                     _, stderr = process.communicate()
                     raise RuntimeError(
-                        f"ffmpeg video recording did not exit within "
-                        f"{_FFMPEG_CLOSE_GRACE_SECONDS}s and was killed."
+                        f"ffmpeg video recording did not exit within {_FFMPEG_CLOSE_GRACE_SECONDS}s and was killed."
                     )
                 if process.returncode != 0:
                     message = (stderr or b"").decode("utf-8", errors="replace").strip()
@@ -201,9 +199,7 @@ class VideoRecordingWrapper(gym.Wrapper):
 
         missing_keys = [key for key in self.record_video_keys if key not in obs]
         if missing_keys:
-            raise KeyError(
-                f"Video observation keys missing from rollout observation: {missing_keys}"
-            )
+            raise KeyError(f"Video observation keys missing from rollout observation: {missing_keys}")
         return [obs[key] for key in self.record_video_keys]
 
     def _resize_frames_to_common_height(self, frames):
@@ -228,9 +224,7 @@ class VideoRecordingWrapper(gym.Wrapper):
                 # Ensure even width for H.264 compatibility
                 new_width = new_width - (new_width % 2)
 
-                resized_frame = cv2.resize(
-                    frame, (new_width, target_height), interpolation=cv2.INTER_LINEAR
-                )
+                resized_frame = cv2.resize(frame, (new_width, target_height), interpolation=cv2.INTER_LINEAR)
                 resized_frames.append(resized_frame)
             else:
                 resized_frames.append(frame)
@@ -240,7 +234,7 @@ class VideoRecordingWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         result = super().reset(**kwargs)
         previous_step_count = self.step_count
-        self.frames = list()
+        self.frames = []
         self.step_count = 1
         self._close_video_writer()
         # New episode == new video file == new frame shape lock, so
@@ -259,9 +253,7 @@ class VideoRecordingWrapper(gym.Wrapper):
             # if "contact_obj" in self.intermediate_signals:
             #     new_filestem += f"_c-o{int(self.intermediate_signals['contact_obj'])}"
             if "grasp_distractor_obj" in self.intermediate_signals:
-                new_filestem += (
-                    f"_not-g-d{int(not self.intermediate_signals['grasp_distractor_obj'])}"
-                )
+                new_filestem += f"_not-g-d{int(not self.intermediate_signals['grasp_distractor_obj'])}"
             # We temporarily disable contact metrics because they are not as indicative
             # if "contact_distractor_obj" in self.intermediate_signals:
             #     new_filestem += (
@@ -284,10 +276,7 @@ class VideoRecordingWrapper(gym.Wrapper):
             #     new_filestem += f"_d-dist{min_gripper_distractor_dist:.4f}"
 
             # Add language following metrics to the filename
-            if (
-                "grasp_obj" in self.intermediate_signals
-                and "grasp_distractor_obj" in self.intermediate_signals
-            ):
+            if "grasp_obj" in self.intermediate_signals and "grasp_distractor_obj" in self.intermediate_signals:
                 success = self.is_success
                 grasp_obj = self.intermediate_signals["grasp_obj"]
                 not_grasp_distractor_obj = not self.intermediate_signals["grasp_distractor_obj"]
@@ -372,9 +361,7 @@ class VideoRecordingWrapper(gym.Wrapper):
 
             new_file_path = self.video_dir / f"{new_filestem}.mp4"
             should_keep_video = (
-                self.is_episode_finished
-                or previous_step_count >= self.max_episode_steps
-                or self.is_success
+                self.is_episode_finished or previous_step_count >= self.max_episode_steps or self.is_success
             )
             if should_keep_video:
                 os.rename(self.file_path, new_file_path)
@@ -417,11 +404,9 @@ class VideoRecordingWrapper(gym.Wrapper):
 
             if self.overlay_text:
                 # Droid dataset has "language.language_instruction"
-                auto_language_key = [
-                    k
-                    for k in result[0].keys()
-                    if k.startswith("annotation.") or k.startswith("language.")
-                ][0]
+                auto_language_key = next(
+                    k for k in result[0].keys() if k.startswith("annotation.") or k.startswith("language.")
+                )
                 # assert auto_language_key in [
                 #     "annotation.human.coarse_action",
                 #     "annotation.human.task_description",
@@ -476,16 +461,12 @@ class VideoRecordingWrapper(gym.Wrapper):
                     # tripping the wrapper shape-lock assert.
                     while caption_height > self.caption_height and font_scale > 0.05:
                         font_scale *= 0.9
-                        text_size, baseline = cv2.getTextSize(
-                            language, font, font_scale, font_thickness
-                        )
+                        text_size, baseline = cv2.getTextSize(language, font, font_scale, font_thickness)
                         caption_height = text_size[1] + baseline + 2 * padding
                         if (frame.shape[0] + caption_height) % 2:
                             caption_height += 1
 
-                caption = np.zeros(
-                    (self.caption_height, frame.shape[1], frame.shape[2]), dtype=frame.dtype
-                )
+                caption = np.zeros((self.caption_height, frame.shape[1], frame.shape[2]), dtype=frame.dtype)
 
                 cv2.putText(
                     caption,

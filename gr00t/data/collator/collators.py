@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any
 
 import torch
 
 
 class BasicDataCollator:
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+    def __call__(self, features: list[dict[str, Any]]) -> dict[str, torch.Tensor]:
         fields = features[0].keys()
         batch = {}
         for key in fields:

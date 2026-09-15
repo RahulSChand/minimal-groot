@@ -30,7 +30,6 @@ from pathlib import Path
 
 import pytest
 
-
 _ROLLOUT_POLICY = Path(__file__).resolve().parents[3] / "gr00t" / "eval" / "rollout_policy.py"
 _CONST_NAME = "DEFAULT_MAX_EPISODE_STEPS"
 _DATACLASSES = ("VideoConfig", "MultiStepConfig", "RolloutConfig")
@@ -74,8 +73,7 @@ def test_all_defaults_reference_the_single_constant():
     for class_name in _DATACLASSES:
         value = _class_field(tree, class_name, "max_episode_steps")
         assert isinstance(value, ast.Name) and value.id == _CONST_NAME, (
-            f"{class_name}.max_episode_steps default should be {_CONST_NAME}, "
-            "not an independent literal"
+            f"{class_name}.max_episode_steps default should be {_CONST_NAME}, not an independent literal"
         )
 
 

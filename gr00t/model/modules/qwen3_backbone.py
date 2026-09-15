@@ -15,10 +15,9 @@
 
 import logging
 
-from huggingface_hub.errors import GatedRepoError
 import torch
+from huggingface_hub.errors import GatedRepoError
 from transformers.feature_extraction_utils import BatchFeature
-
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +75,7 @@ def _real_inference_device(module: torch.nn.Module) -> torch.device:
     return torch.device("cpu")
 
 
-def recompute_vision_rotary_inv_freq(
-    rotary: torch.nn.Module, head_dim_half: int, device: torch.device
-) -> torch.Tensor:
+def recompute_vision_rotary_inv_freq(rotary: torch.nn.Module, head_dim_half: int, device: torch.device) -> torch.Tensor:
     """Re-derive Qwen3-VL's vision RoPE ``inv_freq`` via the module's own class.
 
     Reusing ``type(rotary)(...)`` keeps the analytic formula owned by Transformers;
@@ -89,9 +86,7 @@ def recompute_vision_rotary_inv_freq(
     return fresh.inv_freq.detach().to(device=device, dtype=torch.float32)
 
 
-def recompute_text_rotary_inv_freq(
-    rotary: torch.nn.Module, config, device: torch.device
-) -> tuple[torch.Tensor, float]:
+def recompute_text_rotary_inv_freq(rotary: torch.nn.Module, config, device: torch.device) -> tuple[torch.Tensor, float]:
     """Re-derive Qwen3-VL's text RoPE ``inv_freq`` via the module's own class.
 
     Delegates to the module's constructor so the configured ``rope_init_fn``
@@ -105,9 +100,7 @@ def recompute_text_rotary_inv_freq(
     return inv_freq, attention_scaling
 
 
-def _assign_inv_freq(
-    rotary: torch.nn.Module, name: str, value: torch.Tensor, *, persistent: bool
-) -> bool:
+def _assign_inv_freq(rotary: torch.nn.Module, name: str, value: torch.Tensor, *, persistent: bool) -> bool:
     """Write ``value`` onto ``rotary.<name>`` if it differs; return whether it changed.
 
     Returns ``True`` when the buffer/attribute was (re)written, ``False`` when the
@@ -313,9 +306,7 @@ class Qwen3Backbone(torch.nn.Module):
             )
 
         vision_config = getattr(config, "vision_config", None)
-        if vision_config is None or not all(
-            hasattr(vision_config, attr) for attr in ("hidden_size", "num_heads")
-        ):
+        if vision_config is None or not all(hasattr(vision_config, attr) for attr in ("hidden_size", "num_heads")):
             raise RuntimeError(
                 "Qwen3-VL vision_config missing hidden_size/num_heads; cannot rebuild the "
                 "non-persistent vision RoPE inv_freq (continuing would leave it "
@@ -345,10 +336,7 @@ class Qwen3Backbone(torch.nn.Module):
         # ``original_inv_freq`` is a plain attribute (not a buffer) that dynamic
         # RoPE updates restore from; keep it consistent with inv_freq.
         if hasattr(rotary, "original_inv_freq"):
-            changed = (
-                _assign_inv_freq(rotary, "original_inv_freq", inv_freq.clone(), persistent=False)
-                or changed
-            )
+            changed = _assign_inv_freq(rotary, "original_inv_freq", inv_freq.clone(), persistent=False) or changed
         return changed
 
     def prepare_input(self, batch: dict) -> BatchFeature:

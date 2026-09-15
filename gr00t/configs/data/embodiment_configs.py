@@ -22,7 +22,6 @@ from gr00t.data.types import (
     ModalityConfig,
 )
 
-
 MODALITY_CONFIGS = {
     ##### Pre-registered pretrain configurations #####
     "oxe_droid_relative_eef_relative_joint": {
@@ -352,10 +351,6 @@ MODALITY_CONFIGS = {
 }
 
 
-def register_modality_config(
-    config: dict, embodiment_tag: EmbodimentTag = EmbodimentTag.NEW_EMBODIMENT
-):
-    assert embodiment_tag.value not in MODALITY_CONFIGS, (
-        f"Embodiment tag {embodiment_tag} already registered"
-    )
+def register_modality_config(config: dict, embodiment_tag: EmbodimentTag = EmbodimentTag.NEW_EMBODIMENT):
+    assert embodiment_tag.value not in MODALITY_CONFIGS, f"Embodiment tag {embodiment_tag} already registered"
     MODALITY_CONFIGS[embodiment_tag.value] = config

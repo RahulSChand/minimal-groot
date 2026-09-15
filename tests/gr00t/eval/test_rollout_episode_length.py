@@ -23,9 +23,10 @@ collapsing ``episode_length`` to 0 and tripping the zero-length-episode
 invariant. These tests pin the version-agnostic accounting helper.
 """
 
-from gr00t.eval.rollout_policy import _macro_step_env_steps
 import numpy as np
 import pytest
+
+from gr00t.eval.rollout_policy import _macro_step_env_steps
 
 
 def test_counts_top_level_n_env_steps():

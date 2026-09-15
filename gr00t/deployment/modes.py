@@ -40,8 +40,8 @@ switching from a ``Literal``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 
 
 class _StrEnum(str, enum.Enum):

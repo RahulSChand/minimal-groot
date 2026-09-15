@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from collections import defaultdict, deque
 from enum import Enum
-import warnings
 
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
+from gymnasium import spaces
 
 
 class AggregateMethod(str, Enum):
@@ -45,7 +45,7 @@ def repeated_box(box_space, n, loc):
     return spaces.Box(
         low=stack_repeated(box_space.low, n, loc),
         high=stack_repeated(box_space.high, n, loc),
-        shape=box_space.shape[:loc] + (n,) + box_space.shape[loc:],
+        shape=(*box_space.shape[:loc], n, *box_space.shape[loc:]),
         dtype=box_space.dtype,
     )
 
@@ -73,7 +73,7 @@ def take_last_n(x, n):
 
 
 def dict_take_last_n(x, n):
-    result = dict()
+    result = {}
     for key, value in x.items():
         result[key] = take_last_n(value, n)
     return result
@@ -127,9 +127,7 @@ def compress_dict_list(ds, recursive=False):
             try:
                 result[key] = np.array(value_list)
             except Exception as e:
-                raise ValueError(
-                    f"Failed to convert values for key '{key}' to numpy array: {str(e)}"
-                )
+                raise ValueError(f"Failed to convert values for key '{key}' to numpy array: {e!s}")
 
     return result
 
@@ -139,8 +137,7 @@ def aggregate(data, method: AggregateMethod = AggregateMethod.MAX):
         method = AggregateMethod(method)
     except ValueError:
         raise ValueError(
-            f"Unsupported aggregate method {method!r}; "
-            f"expected one of {[m.value for m in AggregateMethod]}."
+            f"Unsupported aggregate method {method!r}; expected one of {[m.value for m in AggregateMethod]}."
         )
     if method is AggregateMethod.MAX:
         # equivalent to any
@@ -212,8 +209,8 @@ class MultiStepWrapper(gym.Wrapper):
         self.max_steps_needed = self.get_max_steps_needed()
 
         self.obs = deque(maxlen=self.max_steps_needed + 1)
-        self.reward = list()
-        self.done = list()
+        self.reward = []
+        self.done = []
         self.info = defaultdict(lambda: deque(maxlen=self.n_action_steps + 1))
         self.terminate_on_success = terminate_on_success
 
@@ -251,13 +248,9 @@ class MultiStepWrapper(gym.Wrapper):
         """
         Get the maximum number of steps that we need to cache.
         """
-        video_max_steps_needed = (
-            np.max(self.video_delta_indices) - np.min(self.video_delta_indices) + 1
-        )
+        video_max_steps_needed = np.max(self.video_delta_indices) - np.min(self.video_delta_indices) + 1
         if self.state_delta_indices is not None:
-            state_max_steps_needed = (
-                np.max(self.state_delta_indices) - np.min(self.state_delta_indices) + 1
-            )
+            state_max_steps_needed = np.max(self.state_delta_indices) - np.min(self.state_delta_indices) + 1
         else:
             state_max_steps_needed = 0
         return int(max(video_max_steps_needed, state_max_steps_needed))
@@ -272,9 +265,7 @@ class MultiStepWrapper(gym.Wrapper):
         assert delta_indices[-1] == 0, f"{delta_indices=}"
         if len(delta_indices) > 1:
             # The step is consistent (because in real robot experiments, we actually use the dt to get the observations, which requires the step to be consistent)
-            assert np.all(np.diff(delta_indices) == delta_indices[1] - delta_indices[0]), (
-                f"{delta_indices=}"
-            )
+            assert np.all(np.diff(delta_indices) == delta_indices[1] - delta_indices[0]), f"{delta_indices=}"
             # And the step is positive
             assert (delta_indices[1] - delta_indices[0]) > 0, f"{delta_indices=}"
 
@@ -283,8 +274,8 @@ class MultiStepWrapper(gym.Wrapper):
         obs, info = super().reset(seed=seed, options=options)
 
         self.obs = deque([obs] * (self.max_steps_needed + 1), maxlen=self.max_steps_needed + 1)
-        self.reward = list()
-        self.done = list()
+        self.reward = []
+        self.done = []
         self.info = defaultdict(lambda: deque(maxlen=self.n_action_steps + 1))
 
         obs = self._get_obs(self.video_delta_indices, self.state_delta_indices)
@@ -318,9 +309,7 @@ class MultiStepWrapper(gym.Wrapper):
             dones.append(done)
             self.obs.append(observation)
             self.reward.append(reward)
-            if (self.max_episode_steps is not None) and (
-                len(self.reward) >= self.max_episode_steps
-            ):
+            if (self.max_episode_steps is not None) and (len(self.reward) >= self.max_episode_steps):
                 # truncation
                 done = True
             self.done.append(done)
@@ -370,7 +359,7 @@ class MultiStepWrapper(gym.Wrapper):
         """
         assert len(self.obs) > 0
         if isinstance(self.observation_space, spaces.Dict):
-            result = dict()
+            result = {}
             for key in self.observation_space.keys():
                 if key.startswith("video"):
                     """
@@ -419,7 +408,7 @@ class MultiStepWrapper(gym.Wrapper):
         return getattr(self, name)
 
     def get_infos(self):
-        result = dict()
+        result = {}
         for k, v in self.info.items():
             result[k] = list(v)
         return result

@@ -32,8 +32,8 @@ import hashlib
 import json
 import logging
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -46,7 +46,6 @@ from gr00t.data.state_action.action_chunking import EndEffectorActionChunk, Join
 from gr00t.data.state_action.pose import EndEffectorPose, JointPose
 from gr00t.data.types import ActionRepresentation, ActionType, EmbodimentTag, ModalityConfig
 from gr00t.data.utils import to_json_serializable
-
 
 LE_ROBOT_DATA_FILENAME = "data/*/*.parquet"
 LE_ROBOT_INFO_FILENAME = "meta/info.json"
@@ -79,7 +78,7 @@ def _load_stats_cache(path: Path) -> dict[str, Any]:
     try:
         if not path.exists() or path.stat().st_size == 0:
             return {}
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("[stats] discarding unreadable cache %s: %s; regenerating", path, exc)
@@ -166,9 +165,7 @@ def calculate_dataset_statistics(
         features = list(all_low_dim_data.columns)
     for le_modality in features:
         print(f"Computing statistics for {le_modality}...")
-        np_data = np.vstack(
-            [np.asarray(x, dtype=np.float32) for x in all_low_dim_data[le_modality]]
-        )
+        np_data = np.vstack([np.asarray(x, dtype=np.float32) for x in all_low_dim_data[le_modality]])
         dataset_statistics[le_modality] = dict(
             mean=np.mean(np_data, axis=0).tolist(),
             std=np.std(np_data, axis=0).tolist(),
@@ -243,15 +240,15 @@ def check_stats_validity(dataset_path: Path | str, features: list[str]):
     info_path = dataset_path / LE_ROBOT_INFO_FILENAME
     if not info_path.exists():
         return False
-    with open(info_path, "r") as f:
+    with open(info_path) as f:
         le_features = json.load(f).get("features", {})
     return not _stale_features(stats, le_features, features)
 
 
 def generate_stats(dataset_path: Path | str):
     dataset_path = Path(dataset_path)
-    print(f"Generating stats for {str(dataset_path)}")
-    with open(dataset_path / LE_ROBOT_INFO_FILENAME, "r") as f:
+    print(f"Generating stats for {dataset_path!s}")
+    with open(dataset_path / LE_ROBOT_INFO_FILENAME) as f:
         le_features = json.load(f)["features"]
     lowdim_features = [f for f in le_features if "float" in le_features[f]["dtype"]]
 
@@ -314,10 +311,7 @@ class RelativeActionLoader:
             modality_keys=[state_key],
         )
         # Check state-action consistency
-        assert (
-            self.modality_configs["state"].delta_indices[-1]
-            == self.modality_configs["action"].delta_indices[0]
-        )
+        assert self.modality_configs["state"].delta_indices[-1] == self.modality_configs["action"].delta_indices[0]
         self.loader = LeRobotEpisodeLoader(dataset_path, self.modality_configs)
 
     def load_relative_actions(self, trajectory_id: int) -> list[np.ndarray]:
@@ -458,9 +452,7 @@ def main(
             importlib.import_module(config_path.stem)
             print(f"Loaded modality config: {config_path}")
         else:
-            raise FileNotFoundError(
-                f"Modality config path does not exist or is not a .py file: {modality_config_path}"
-            )
+            raise FileNotFoundError(f"Modality config path does not exist or is not a .py file: {modality_config_path}")
     # Custom tags (e.g. NEW_EMBODIMENT) are only in MODALITY_CONFIGS once a
     # --modality-config-path registers them; fail here instead of a bare KeyError
     # deep in generate_rel_stats (and before generate_stats writes a partial set).

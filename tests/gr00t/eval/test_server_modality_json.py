@@ -15,9 +15,10 @@
 
 import json
 
+import pytest
+
 from gr00t.data.types import ModalityConfig
 from gr00t.eval.run_gr00t_server import _load_json_modality_configs
-import pytest
 
 
 def test_dataset_layout_json_raises_actionable(tmp_path):

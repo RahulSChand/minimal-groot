@@ -44,7 +44,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 INITIAL_ACTIONS_FILENAME = "initial_actions.npz"
 
 _KEY_SEP = "::"
@@ -147,8 +146,7 @@ def load_initial_actions(
         schema = json.loads(bytes(npz[_SCHEMA_KEY]).decode("utf-8"))
         if schema.get("format") != "gr00t.initial_actions":
             raise ValueError(
-                f"{initial_actions_path}: unrecognised schema {schema!r}; "
-                "expected format='gr00t.initial_actions'."
+                f"{initial_actions_path}: unrecognised schema {schema!r}; expected format='gr00t.initial_actions'."
             )
         if schema.get("version") != _FORMAT_VERSION:
             raise ValueError(

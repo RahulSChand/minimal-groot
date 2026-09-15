@@ -117,8 +117,7 @@ class Gr00tPolicy(BasePolicy):
         # subdirectory when the root lacks a processor_config.json.
         processor_dir = (
             model_dir / "processor"
-            if (model_dir / "processor").is_dir()
-            and not (model_dir / "processor_config.json").exists()
+            if (model_dir / "processor").is_dir() and not (model_dir / "processor_config.json").exists()
             else model_dir
         )
         self.processor: BaseProcessor = AutoProcessor.from_pretrained(processor_dir)
@@ -159,9 +158,7 @@ class Gr00tPolicy(BasePolicy):
                 f"{hint}"
             )
         self.modality_configs = {
-            k: v
-            for k, v in all_modality_configs[self.embodiment_tag.value].items()
-            if k != "rl_info"
+            k: v for k, v in all_modality_configs[self.embodiment_tag.value].items() if k != "rl_info"
         }
         self.collate_fn = self.processor.collator
 
@@ -185,7 +182,7 @@ class Gr00tPolicy(BasePolicy):
         """
         unbatched_obs = []
         # Infer batch size from the first video key
-        batch_size = value["video"][list(value["video"].keys())[0]].shape[0]
+        batch_size = value["video"][next(iter(value["video"].keys()))].shape[0]
 
         # Split each modality along the batch dimension
         for i in range(batch_size):
@@ -253,9 +250,7 @@ class Gr00tPolicy(BasePolicy):
         # ===== VIDEO VALIDATION =====
         # Validate each video stream defined in the modality config
         for video_key in self.modality_configs["video"].modality_keys:
-            assert video_key in observation["video"], (
-                f"Video key '{video_key}' must be in observation"
-            )
+            assert video_key in observation["video"], f"Video key '{video_key}' must be in observation"
 
             # Set or verify batch size consistency across all video keys
             if bs == -1:
@@ -297,9 +292,7 @@ class Gr00tPolicy(BasePolicy):
         for state_key in self.modality_configs["state"].modality_keys:
             # Check that the expected state key exists in the observation
             # (must happen before indexing — see video validation above)
-            assert state_key in observation["state"], (
-                f"State key '{state_key}' must be in observation"
-            )
+            assert state_key in observation["state"], f"State key '{state_key}' must be in observation"
 
             # Set or verify batch size consistency across all state keys
             if bs == -1:
@@ -336,9 +329,7 @@ class Gr00tPolicy(BasePolicy):
         for language_key in self.modality_configs["language"].modality_keys:
             # Check that the expected language key exists in the observation
             # (must happen before indexing — see video validation above)
-            assert language_key in observation["language"], (
-                f"Language key '{language_key}' must be in observation"
-            )
+            assert language_key in observation["language"], f"Language key '{language_key}' must be in observation"
 
             # Set or verify batch size consistency (language uses len instead of .shape)
             if bs == -1:
@@ -363,14 +354,10 @@ class Gr00tPolicy(BasePolicy):
                 )
 
                 # Verify inner structure is also a list (temporal dimension)
-                assert isinstance(batch_item, list), (
-                    f"Language batch item must be a list. Got {type(batch_item)}"
-                )
+                assert isinstance(batch_item, list), f"Language batch item must be a list. Got {type(batch_item)}"
 
                 # Current implementation expects exactly one language instruction per timestep
-                assert len(batch_item) == 1, (
-                    f"Language batch item must have exactly one item. Got {len(batch_item)}"
-                )
+                assert len(batch_item) == 1, f"Language batch item must have exactly one item. Got {len(batch_item)}"
 
                 # Verify the instruction itself is a string
                 assert isinstance(batch_item[0], str), (
@@ -426,9 +413,7 @@ class Gr00tPolicy(BasePolicy):
         )
 
         # Cast all actions to float32 for consistency
-        casted_action = {
-            key: value.astype(np.float32) for key, value in unnormalized_action.items()
-        }
+        casted_action = {key: value.astype(np.float32) for key, value in unnormalized_action.items()}
         return casted_action, {}
 
     def check_action(self, action: dict[str, Any]) -> None:
@@ -616,9 +601,7 @@ class Gr00tSimPolicyWrapper(PolicyWrapper):
             # /PATCH
 
             # Check that the expected language key exists
-            assert language_key in observation, (
-                f"Language key '{language_key}' must be in observation"
-            )
+            assert language_key in observation, f"Language key '{language_key}' must be in observation"
 
             # In Gr00t sim format, language is a tuple of strings (B,)
             batched_language = _sim_language_batch_to_sequence(observation[language_key])

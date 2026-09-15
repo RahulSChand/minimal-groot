@@ -25,6 +25,8 @@ Ensures that:
   exhaustive and non-overlapping.
 """
 
+import pytest
+
 from gr00t.configs.data.embodiment_configs import MODALITY_CONFIGS
 from gr00t.data.embodiment_tags import (
     FINETUNE_ONLY_TAGS,
@@ -33,7 +35,6 @@ from gr00t.data.embodiment_tags import (
     EmbodimentTag,
 )
 from gr00t.model.gr00t_n1d7.processing_gr00t_n1d7 import EMBODIMENT_TAG_TO_PROJECTOR_INDEX
-import pytest
 
 
 class TestEmbodimentTagResolve:
@@ -122,9 +123,7 @@ class TestTagCategories:
 
     def test_categories_are_non_overlapping(self):
         """No tag should appear in more than one category."""
-        assert not (PRETRAIN_TAGS & POSTTRAIN_TAGS), (
-            f"Overlap pretrain/posttrain: {PRETRAIN_TAGS & POSTTRAIN_TAGS}"
-        )
+        assert not (PRETRAIN_TAGS & POSTTRAIN_TAGS), f"Overlap pretrain/posttrain: {PRETRAIN_TAGS & POSTTRAIN_TAGS}"
         assert not (PRETRAIN_TAGS & FINETUNE_ONLY_TAGS), (
             f"Overlap pretrain/finetune: {PRETRAIN_TAGS & FINETUNE_ONLY_TAGS}"
         )
@@ -186,8 +185,7 @@ class TestEmbodimentTagConsistency:
         """Every tag must have a projector index mapping."""
         for tag in EmbodimentTag:
             assert tag.value in EMBODIMENT_TAG_TO_PROJECTOR_INDEX, (
-                f"EmbodimentTag.{tag.name} ('{tag.value}') missing from "
-                f"EMBODIMENT_TAG_TO_PROJECTOR_INDEX"
+                f"EmbodimentTag.{tag.name} ('{tag.value}') missing from EMBODIMENT_TAG_TO_PROJECTOR_INDEX"
             )
 
     def test_no_extra_projector_entries(self):
@@ -195,17 +193,14 @@ class TestEmbodimentTagConsistency:
         all_tag_values = {tag.value for tag in EmbodimentTag}
         for key in EMBODIMENT_TAG_TO_PROJECTOR_INDEX:
             assert key in all_tag_values, (
-                f"EMBODIMENT_TAG_TO_PROJECTOR_INDEX has orphan key '{key}' "
-                f"with no matching EmbodimentTag"
+                f"EMBODIMENT_TAG_TO_PROJECTOR_INDEX has orphan key '{key}' with no matching EmbodimentTag"
             )
 
     def test_no_extra_modality_config_entries(self):
         """MODALITY_CONFIGS should not have orphan keys without a matching EmbodimentTag."""
         all_tag_values = {tag.value for tag in EmbodimentTag}
         for key in MODALITY_CONFIGS:
-            assert key in all_tag_values, (
-                f"MODALITY_CONFIGS has orphan key '{key}' with no matching EmbodimentTag"
-            )
+            assert key in all_tag_values, f"MODALITY_CONFIGS has orphan key '{key}' with no matching EmbodimentTag"
 
     def test_posttrain_tags_with_builtin_configs_in_modality_configs(self):
         """Posttrain tags that need built-in modality configs should have them."""
@@ -220,8 +215,7 @@ class TestEmbodimentTagConsistency:
             if tag in checkpoint_config_tags:
                 continue
             assert tag.value in MODALITY_CONFIGS, (
-                f"EmbodimentTag.{tag.name} ('{tag.value}') is a posttrain tag "
-                f"but missing from MODALITY_CONFIGS"
+                f"EmbodimentTag.{tag.name} ('{tag.value}') is a posttrain tag but missing from MODALITY_CONFIGS"
             )
 
     def test_robocasa_gr1_tabletop_modality_config(self):

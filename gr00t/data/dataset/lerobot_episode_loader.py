@@ -32,11 +32,11 @@ providing episode-level data access with support for multi-modal data including:
 Returns messages with VLAStepData as defined in types.py.
 """
 
-from collections import defaultdict
 import json
 import logging
-from pathlib import Path
 import random
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -45,7 +45,6 @@ import pandas as pd
 from gr00t.data.types import ModalityConfig
 from gr00t.utils.initial_actions import INITIAL_ACTIONS_FILENAME, load_initial_actions
 from gr00t.utils.video_utils import get_frames_by_indices
-
 
 # LeRobot standard metadata filenames
 LEROBOT_META_DIR_NAME = "meta"
@@ -156,23 +155,23 @@ class LeRobotEpisodeLoader:
 
         # Load dataset configuration
         info_path = meta_dir / LEROBOT_INFO_FILENAME
-        with open(info_path, "r") as f:
+        with open(info_path) as f:
             self.info_meta = json.load(f)
 
         # Load episode metadata (one episode per line)
         episodes_path = meta_dir / LEROBOT_EPISODES_FILENAME
-        with open(episodes_path, "r") as f:
+        with open(episodes_path) as f:
             self.episodes_metadata = [json.loads(line) for line in f]
 
         # Load task descriptions and create mapping
         tasks_path = meta_dir / LEROBOT_TASKS_FILENAME
-        with open(tasks_path, "r") as f:
+        with open(tasks_path) as f:
             tasks_data = [json.loads(line) for line in f]
             self.tasks_map = {task["task_index"]: task["task"] for task in tasks_data}
 
         # Load modality structure information
         modality_path = meta_dir / LEROBOT_MODALITY_FILENAME
-        with open(modality_path, "r") as f:
+        with open(modality_path) as f:
             self.modality_meta = json.load(f)
 
         # Load dataset statistics for normalization
@@ -180,12 +179,12 @@ class LeRobotEpisodeLoader:
         assert stats_path.exists(), (
             f"{stats_path} does not exist for {self.dataset_path}, please use gr00t/data/stats.py to generate it"
         )
-        with open(stats_path, "r") as f:
+        with open(stats_path) as f:
             self.stats = json.load(f)
 
         relative_stats_path = meta_dir / LEROBOT_RELATIVE_STATS_FILE_NAME
         if relative_stats_path.exists():
-            with open(relative_stats_path, "r") as f:
+            with open(relative_stats_path) as f:
                 relative_stats = json.load(f)
             # Drop the cache-invalidation sidecar written by gr00t.data.stats
             # (mirrors STATS_FINGERPRINTS_KEY there). Consumers index by
@@ -243,12 +242,8 @@ class LeRobotEpisodeLoader:
         # Filter out any modalities not handled by the dataset loader.
         unknown_modalities = [m for m in modality_configs if m not in ALLOWED_MODALITIES]
         if unknown_modalities:
-            logging.debug(
-                f"Skipping modalities not supported by dataset loader: {unknown_modalities}"
-            )
-            modality_configs = {
-                k: v for k, v in modality_configs.items() if k in ALLOWED_MODALITIES
-            }
+            logging.debug(f"Skipping modalities not supported by dataset loader: {unknown_modalities}")
+            modality_configs = {k: v for k, v in modality_configs.items() if k in ALLOWED_MODALITIES}
         for modality in modality_configs:
             if modality == "language":
                 # Language modality has special constraints.
@@ -360,9 +355,7 @@ class LeRobotEpisodeLoader:
         """
         # Load raw parquet data using chunking pattern
         chunk_idx = episode_index // self.chunk_size
-        parquet_filename = self.data_path_pattern.format(
-            episode_chunk=chunk_idx, episode_index=episode_index
-        )
+        parquet_filename = self.data_path_pattern.format(episode_chunk=chunk_idx, episode_index=episode_index)
         parquet_path = self.dataset_path / parquet_filename
         original_df = pd.read_parquet(parquet_path)
         loaded_df = pd.DataFrame()
@@ -375,13 +368,9 @@ class LeRobotEpisodeLoader:
                     continue
                 assert key.startswith("annotation.")
                 subkey = key.replace("annotation.", "")
-                assert subkey in self.modality_meta["annotation"], (
-                    f"Key {subkey} not found in language modality"
-                )
+                assert subkey in self.modality_meta["annotation"], f"Key {subkey} not found in language modality"
                 original_key = self.modality_meta["annotation"][subkey].get("original_key", key)
-                loaded_df[f"language.{key}"] = original_df[original_key].apply(
-                    lambda x: self.tasks_map[x]
-                )
+                loaded_df[f"language.{key}"] = original_df[original_key].apply(lambda x: self.tasks_map[x])
 
         # Extract joint groups for state and action modalities
         for modality_type in ["state", "action"]:
@@ -423,12 +412,8 @@ class LeRobotEpisodeLoader:
             # Resolve the original key used in video file naming.
             # Use the video key mapping if the config key differs from the dataset meta key.
             meta_key = self._video_key_mapping.get(image_key, image_key)
-            original_key = self.modality_meta["video"][meta_key].get(
-                "original_key", f"observation.images.{meta_key}"
-            )
-            assert original_key in self.feature_config, (
-                f"Original key {original_key} not found in feature config"
-            )
+            original_key = self.modality_meta["video"][meta_key].get("original_key", f"observation.images.{meta_key}")
+            assert original_key in self.feature_config, f"Original key {original_key} not found in feature config"
 
             # Construct video file path using pattern
             video_filename = self.video_path_pattern.format(
@@ -525,18 +510,16 @@ class LeRobotEpisodeLoader:
                     self.modality_meta[modality][joint_key]["end"],
                 )
                 for stat_type in self.stats[stats_key].keys():  # mean, std, min, max, q01, q99
-                    dataset_statistics[modality][joint_key][stat_type] = self.stats[stats_key][
-                        stat_type
-                    ][start_idx:end_idx]
+                    dataset_statistics[modality][joint_key][stat_type] = self.stats[stats_key][stat_type][
+                        start_idx:end_idx
+                    ]
         stats = _to_plain_dict(dataset_statistics)
         # Directly add relative action stats
         if "relative_action" in self.stats:
             stats["relative_action"] = self.stats["relative_action"]
         return stats
 
-    def create_language_from_meta(
-        self, episode_meta: dict, nframes: int, lang_key: str
-    ) -> list[str]:
+    def create_language_from_meta(self, episode_meta: dict, nframes: int, lang_key: str) -> list[str]:
         if lang_key == "task":
             meta_language = random.choice(episode_meta["tasks"])
             new_languages = [meta_language] * nframes
