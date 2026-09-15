@@ -1,5 +1,6 @@
 import json
 import random
+from copy import deepcopy
 from typing import ClassVar
 
 import numpy as np
@@ -14,7 +15,7 @@ from gr00t.data.dataset.trajectory_subset import (
 )
 from gr00t.data.types import ModalityConfig
 from gr00t.experiment.launch_finetune import select_model_config
-from gr00t.experiment.sample_efficiency import stopping_state, train_one_epoch
+from gr00t.experiment.sample_efficiency import is_plan_extension, should_stop, stopping_state, train_one_epoch
 
 
 def test_manifest_nested_global_selection_and_metadata_validation(tmp_path):
@@ -118,3 +119,30 @@ def test_early_stopping_requires_strict_success_improvement():
         state = stopping_state(state, epoch, successes)
     assert state == {"best_epoch": 2, "best_successes": 2, "epochs_without_improvement": 2}
     assert stopping_state(state, 5, 3)["epochs_without_improvement"] == 0
+
+
+def test_patience_only_training_continues_past_fifteen_epochs():
+    state = None
+    scores = [score for score in range(21) for _ in range(2)] + [20]
+    for epoch, successes in enumerate(scores, 1):
+        state = stopping_state(state, epoch, successes)
+        assert should_stop(state, epoch, patience=2) == (epoch == len(scores))
+
+
+def test_extend_campaign_preserves_existing_runs_and_recipe():
+    previous = {
+        "source_git_commit": "campaign-start",
+        "training": {"seed": 42, "learning_rate": 5e-5},
+        "runs": [{"trajectory_count": 5, "episode_indices": [8, 3, 2, 9, 7]}],
+    }
+    proposed = deepcopy(previous)
+    proposed["source_git_commit"] = "committed-campaign-code"
+    proposed["runs"].append({"trajectory_count": 10, "episode_indices": [8, 3, 2, 9, 7, 1, 6, 5, 0, 4]})
+    assert is_plan_extension(previous, proposed)
+    changed_recipe = deepcopy(proposed)
+    changed_recipe["training"]["seed"] = 43
+    assert not is_plan_extension(previous, changed_recipe)
+    changed_subset = deepcopy(proposed)
+    changed_subset["runs"][0]["episode_indices"].reverse()
+    assert not is_plan_extension(previous, changed_subset)
+    assert not is_plan_extension(proposed, previous)

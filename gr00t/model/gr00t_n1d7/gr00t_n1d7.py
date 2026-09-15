@@ -521,14 +521,18 @@ class Gr00tN1d7(PreTrainedModel):
             tune_top_llm_layers=config.tune_top_llm_layers,
             trainable_params_fp32=config.backbone_trainable_params_fp32,
             transformers_loading_kwargs=transformers_loading_kwargs,
+            backbone_config=getattr(config, "backbone_config", None),
         )
 
         # Initialize action head
         self.action_head = Gr00tN1d7ActionHead(config)
+        from pathlib import Path
+
         from .processing_gr00t_n1d7 import Gr00tN1d7DataCollator
 
+        bundled_processor = Path(config._name_or_path) / "vlm_assets"
         self.collator = Gr00tN1d7DataCollator(
-            model_name=config.model_name,
+            model_name=str(bundled_processor) if bundled_processor.is_dir() else config.model_name,
             model_type=config.backbone_model_type,
             transformers_loading_kwargs=transformers_loading_kwargs,
         )

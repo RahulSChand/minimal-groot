@@ -807,6 +807,9 @@ class Gr00tN1d7Processor(BaseProcessor):
         processor_kwargs = config["processor_kwargs"]
         processor_kwargs["statistics"] = statistics
         processor_kwargs["embodiment_id_mapping"] = embodiment_id_mapping
+        bundled_processor = pretrained_model_name_or_path / "vlm_assets"
+        if is_local and bundled_processor.is_dir():
+            processor_kwargs["model_name"] = str(bundled_processor)
 
         # Backfill fields that older checkpoints may not have serialized.
         # Without these, __init__ defaults silently apply — correct today but

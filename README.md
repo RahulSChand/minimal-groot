@@ -139,7 +139,7 @@ Each epoch is evaluated on LIBERO Spatial task 0, initial states 0–19, seed 7,
 with 20 simulator workers, inference batches up to 8, five-step replanning,
 ten settling steps, and a 220-step limit. Training stops after at least three
 epochs when two consecutive epochs fail to improve the best success count,
-with a limit of 15 epochs. These executable defaults supersede the older
+without a fixed epoch limit. These executable defaults supersede the older
 3-patience/20-epoch prose in the reference README.
 
 GR00T retains its own image processing, action normalization, and native action
@@ -178,6 +178,34 @@ Checkpoints stay local and omit optimizer state; restart an
 interrupted budget from base weights in a new output directory. Rerunning an
 unchanged completed plan skips completed budgets. The standard fine-tuning
 launcher continues to support resumable optimizer checkpoints.
+
+### Verified Spatial campaign with every epoch on the Hub
+
+`examples/LIBERO/run_spatial_campaign.py` runs the 20 requested experiments:
+N1, N1.5, N1.6 and N1.7, each with 5, 10, 15, 25 and 50 trajectories total.
+Completed runs are skipped when adding a budget; their checkpoints are retained.
+It pins the four official NVIDIA base revisions, uses one seed-42 nested
+manifest, and reads `/root/liber_spatial_post`. Each budget starts from its
+version's base. Stopping uses two consecutive non-improvements, with ties
+counting as non-improvements and no epoch cap.
+
+Before training, `examples/LIBERO/prepare_spatial.py` validates every episode,
+task and embedded image against the pinned LIBERO Spatial task definitions,
+then computes normalization over the verified Spatial corpus. Its provenance
+and file hashes are saved in the dataset's `meta/` directory.
+
+Each epoch is saved, evaluated on 20 task-0 rollouts, and published under
+`n<version>/trajectories-<NNN>/epoch-<EEE>/`. The upload includes native
+processor assets, statistics, embodiment IDs, manifests, and compatible runtime
+source. A fresh subprocess loads the downloaded checkpoint with an empty Hub
+cache and networking disabled by the Hub offline settings, checks strict
+weight loading, and runs action inference. Only after this succeeds is the
+local epoch directory deleted. Optimizer state stays in memory during a run
+and is never saved or uploaded.
+
+Logs, evaluation results, verification receipts and run summaries are retained
+under `outputs/spatial-trajectory-efficiency-20260915/`. A failed upload or load
+check stops the campaign and preserves the local checkpoint for repair.
 
 ## Dataset contract
 

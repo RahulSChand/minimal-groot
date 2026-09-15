@@ -3,10 +3,12 @@
 import argparse
 import gc
 import hashlib
+import itertools
 import json
 import math
 import random
 import shutil
+import subprocess
 import time
 from collections import Counter
 from pathlib import Path
@@ -75,6 +77,25 @@ def stopping_state(previous, epoch, successes):
     return {**previous, "epochs_without_improvement": previous["epochs_without_improvement"] + 1}
 
 
+def should_stop(state, epoch, *, patience, minimum_epochs=1, max_epochs=None):
+    return (epoch >= minimum_epochs and state["epochs_without_improvement"] >= patience) or (
+        max_epochs is not None and epoch >= max_epochs
+    )
+
+
+def is_plan_extension(previous, proposed):
+    """Allow additional budgets only when every existing run and recipe match."""
+    # New runs record the current source commit. Existing checkpoint manifests
+    # and their checksummed runtime source remain unchanged after a code commit.
+    metadata_fields = {"runs", "source_git_commit"}
+    previous_recipe = {key: value for key, value in previous.items() if key not in metadata_fields}
+    proposed_recipe = {key: value for key, value in proposed.items() if key not in metadata_fields}
+    if previous_recipe != proposed_recipe:
+        return False
+    proposed_runs = {run["trajectory_count"]: run for run in proposed["runs"]}
+    return all(proposed_runs.get(run["trajectory_count"]) == run for run in previous["runs"])
+
+
 def build_model_and_processor(args, run_dir):
     from gr00t.model import MODEL_REGISTRY
 
@@ -89,6 +110,8 @@ def build_model_and_processor(args, run_dir):
     artifact_dir.mkdir(parents=True, exist_ok=True)
     pipeline = MODEL_REGISTRY[type(config.model)](config, artifact_dir)
     model = pipeline._create_model()
+    if model.config.model_type == "Gr00tN1d7":
+        model.config.backbone_config = model.backbone.model.config.to_dict()
     config.model.action_horizon = model.config.action_horizon
     modalities = libero_spatial_config(model.config.action_horizon)
     config.data.modality_configs = {EmbodimentTag.LIBERO_PANDA.value: modalities}
@@ -129,6 +152,8 @@ def run_budget(args, budget, manifest, plan):
     seed_everything(args.seed)
     model, processor, modalities = build_model_and_processor(args, run_dir)
     dataset = TrajectorySubsetDataset(args.dataset_root, selected, modalities, processor)
+    processor.state_action_processor.statistics.clear()
+    processor.state_action_processor.norm_params.clear()
     processor.set_statistics({EmbodimentTag.LIBERO_PANDA.value: dataset.get_dataset_statistics()}, override=True)
     processor.train()
     loader = DataLoader(
@@ -164,7 +189,7 @@ def run_budget(args, budget, manifest, plan):
     )
     step, state = 0, None
     try:
-        for epoch in range(1, args.max_epochs + 1):
+        for epoch in itertools.count(1):
             started = time.monotonic()
             processor.train()
             step, loss, steps = train_one_epoch(
@@ -176,6 +201,9 @@ def run_budget(args, budget, manifest, plan):
             # evaluations leave this trained checkpoint available for inspection.
             model.save_pretrained(temporary, max_shard_size="5GB")
             processor.save_pretrained(temporary)
+            from gr00t.experiment.checkpoint_publication import add_checkpoint_assets
+
+            add_checkpoint_assets(temporary, processor, dataset, plan, Path(__file__).resolve().parents[2])
             shutil.copytree(run_dir / "experiment_cfg", temporary / "experiment_cfg")
             shutil.copy2(args.manifest, temporary / "trajectory_manifest.json")
             write_json(
@@ -215,17 +243,70 @@ def run_budget(args, budget, manifest, plan):
             summary["best_checkpoint"] = str(run_dir / f"epoch-{state['best_epoch']:03d}")
             keep_last = args.checkpoint_retention == "best-and-last" or state["best_epoch"] == epoch
             summary["last_checkpoint"] = str(checkpoint) if keep_last else None
-            summary["complete"] = epoch == args.max_epochs or (
-                epoch >= args.minimum_epochs and state["epochs_without_improvement"] >= args.patience
+            finished = should_stop(
+                state, epoch, patience=args.patience, minimum_epochs=args.minimum_epochs, max_epochs=args.max_epochs
             )
             summary["stop_reason"] = (
-                ("max_epochs" if epoch == args.max_epochs else "early_stopping") if summary["complete"] else None
+                ("max_epochs" if epoch == args.max_epochs else "early_stopping") if finished else None
             )
-            write_json(summary_path, summary)
+            summary["complete"] = False  # Completion includes remote verification and local cleanup.
             write_json(
                 checkpoint / "metadata.json",
                 {**summary, "epoch": epoch, "global_step": step, "optimizer_saved": False},
             )
+            if args.hub_repo_id:
+                import importlib
+
+                from gr00t.experiment import checkpoint_publication
+
+                folder = f"{args.hub_version_folder}/trajectories-{budget:03d}/epoch-{epoch:03d}"
+                while True:
+                    try:
+                        receipt = checkpoint_publication.publish_verify_delete(
+                            checkpoint,
+                            args.hub_repo_id,
+                            folder,
+                            run_dir / "evaluations" / checkpoint.name,
+                        )
+                        break
+                    except Exception as error:
+                        # Preserve the live optimizer while an upload/load
+                        # failure is repaired. No next epoch can start here.
+                        pending = run_dir / "pending_publication.json"
+                        retry = run_dir / "retry_publication"
+                        write_json(pending, {"epoch": epoch, "error": repr(error), "retry_file": str(retry)})
+                        print(f"Publication paused: {error!r}; waiting for {retry}", flush=True)
+                        while not retry.exists():
+                            time.sleep(5)
+                        retry.unlink()
+                        pending.unlink()
+                        importlib.reload(checkpoint_publication)
+                record["upload"] = receipt
+                summary["best_checkpoint"] = (
+                    f"https://huggingface.co/{args.hub_repo_id}/tree/main/{args.hub_version_folder}/"
+                    f"trajectories-{budget:03d}/epoch-{state['best_epoch']:03d}"
+                )
+                summary["last_checkpoint"] = f"https://huggingface.co/{args.hub_repo_id}/tree/main/{folder}"
+                summary["complete"] = finished
+                write_json(summary_path, summary)
+                print(
+                    f"budget={budget} epoch={epoch} loss={loss:.6f} success={successes}/{evaluation['episodes']} "
+                    f"best_epoch={state['best_epoch']} patience={state['epochs_without_improvement']} complete={finished}",
+                    flush=True,
+                )
+                if finished:
+                    from huggingface_hub import HfApi
+
+                    HfApi().upload_file(
+                        repo_id=args.hub_repo_id,
+                        path_or_fileobj=str(summary_path),
+                        path_in_repo=f"{args.hub_version_folder}/trajectories-{budget:03d}/run_summary.json",
+                        commit_message=f"Completed {args.hub_version_folder}, {budget} Spatial trajectories",
+                    )
+                    break
+                continue
+            summary["complete"] = finished
+            write_json(summary_path, summary)
             # Preserve every epoch's metrics. Only remove checkpoints created
             # by this invocation, after the evaluated best checkpoint is saved.
             retained_epochs = {state["best_epoch"]}
@@ -246,10 +327,11 @@ def run_budget(args, budget, manifest, plan):
             )
             if summary["complete"]:
                 break
-        best_metadata_path = Path(summary["best_checkpoint"]) / "metadata.json"
-        best_metadata = json.loads(best_metadata_path.read_text())
-        best_metadata.update(complete=True, epochs_run=len(summary["epochs"]), run_summary_file=str(summary_path))
-        write_json(best_metadata_path, best_metadata)
+        if not args.hub_repo_id:
+            best_metadata_path = Path(summary["best_checkpoint"]) / "metadata.json"
+            best_metadata = json.loads(best_metadata_path.read_text())
+            best_metadata.update(complete=True, epochs_run=len(summary["epochs"]), run_summary_file=str(summary_path))
+            write_json(best_metadata_path, best_metadata)
         return summary
     finally:
         del optimizer, parameters, model, loader, dataset, processor
@@ -261,11 +343,19 @@ def make_plan(args, manifest):
     records = {item["episode_index"]: item for item in manifest["episodes"]}
     return {
         "base_model_path": args.base_model_path,
+        "base_model_repo": args.base_model_repo,
+        "base_model_revision": args.base_model_revision,
         "model_version": args.model_version,
         "dataset_root": str(args.dataset_root),
         "trajectory_manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
         "reference_project": str(args.reference_project),
         "checkpoint_retention": args.checkpoint_retention,
+        "hub_repo_id": args.hub_repo_id,
+        "hub_version_folder": args.hub_version_folder,
+        "source_git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "dataset_provenance": json.loads((args.dataset_root / "meta/spatial_verification.json").read_text())
+        if (args.dataset_root / "meta/spatial_verification.json").exists()
+        else None,
         "training": {
             "seed": args.seed,
             "batch_size": args.batch_size,
@@ -330,7 +420,7 @@ def main():
     parser.add_argument("--gradient-accumulation-steps", type=int, default=6)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
     parser.add_argument("--minimum-epochs", type=int, default=3)
-    parser.add_argument("--max-epochs", type=int, default=15)
+    parser.add_argument("--max-epochs", type=int, default=None, help="Optional cap; default: patience only")
     parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", action="store_true")
@@ -343,9 +433,24 @@ def main():
     parser.add_argument("--eval-timeout", type=int, default=1800)
     parser.add_argument("--checkpoint-retention", choices=["best", "best-and-last"], default="best")
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument(
+        "--extend-run-plan", action="store_true", help="Add budgets while preserving the existing recipe"
+    )
+    parser.add_argument("--hub-repo-id")
+    parser.add_argument("--hub-version-folder")
+    parser.add_argument("--base-model-repo")
+    parser.add_argument("--base-model-revision")
     args = parser.parse_args()
-    if not (1 <= args.minimum_epochs <= args.max_epochs and args.patience >= 1):
-        parser.error("Require 1 <= minimum_epochs <= max_epochs and patience >= 1")
+    if (
+        args.minimum_epochs < 1
+        or args.patience < 1
+        or (args.max_epochs is not None and args.minimum_epochs > args.max_epochs)
+    ):
+        parser.error("Require positive minimum_epochs/patience and max_epochs >= minimum_epochs if supplied")
+    if args.hub_repo_id and not (args.hub_version_folder and args.base_model_repo and args.base_model_revision):
+        parser.error("Hub publishing requires version folder and pinned base model provenance")
+    if args.hub_repo_id and not (args.dataset_root / "meta/spatial_verification.json").is_file():
+        parser.error("Hub publishing requires verified Spatial dataset provenance")
     if (
         min(
             [
@@ -381,8 +486,13 @@ def main():
     }[model_config.model_type]
     plan = make_plan(args, manifest)
     plan_path = args.output_dir / "run_plan.json"
-    if plan_path.exists() and json.loads(plan_path.read_text()) != plan:
-        raise ValueError(f"Existing run plan differs; use a new output directory: {plan_path}")
+    if plan_path.exists():
+        previous_plan = json.loads(plan_path.read_text())
+        if previous_plan != plan:
+            if not args.extend_run_plan or not is_plan_extension(previous_plan, plan):
+                raise ValueError(f"Existing run plan differs; use a new output directory: {plan_path}")
+            previous_hash = hashlib.sha256(plan_path.read_bytes()).hexdigest()[:12]
+            shutil.copy2(plan_path, args.output_dir / f"run_plan.before-extension-{previous_hash}.json")
     write_json(plan_path, plan)
     print(json.dumps(plan, indent=2), flush=True)
     if args.prepare_only:
