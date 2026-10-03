@@ -79,6 +79,35 @@ publish a converted external-video version under the user's Hugging Face
 account and pin that new dataset revision. Do not silently substitute
 `Chand0320/libero_spatial_post` in the N1.7 command.
 
+### Goal and Object datasets
+
+The Goal and Object experiments use the matching external-video datasets at
+these pinned revisions:
+
+```text
+IPEC-COMMUNITY/libero_goal_no_noops_1.0.0_lerobot
+revision: 222cf888ed360fad0a5f983748c1cc40743d43e7
+
+IPEC-COMMUNITY/libero_object_no_noops_1.0.0_lerobot
+revision: 15657dac2ad1c01b4e94bf54ab0493b46a8d63f9
+```
+
+After downloading them beneath `datasets/`, copy the matching LIBERO
+`modality.json` into each dataset's `meta/` directory and generate a separate
+`meta/stats.json` from each complete suite. Then prepare the nested seed-43
+views with:
+
+```bash
+.venv/bin/python experiments/prepare_libero_trajectory_views.py \
+  --suite goal --suite object \
+  --seed 43 \
+  --budgets 10 15 25 50
+```
+
+The prepared views are named
+`datasets/libero_{goal,object}_seed43_trajectories_NNN`. Re-running the command
+validates the existing manifests rather than selecting different episodes.
+
 GR00T needs two metadata files beyond the downloaded data:
 
 ### `modality.json`
