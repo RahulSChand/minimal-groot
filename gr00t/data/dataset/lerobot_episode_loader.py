@@ -96,6 +96,8 @@ class LeRobotEpisodeLoader:
         modality_configs: Dictionary mapping modality names to ModalityConfig objects
                          that specify temporal sampling and data keys to load
         decoder_kwargs: Additional arguments for the video decoder
+        episode_indices: Optional ordered source episode IDs to expose. When
+                         omitted, all episodes are available.
 
     Example:
         >>> loader = LeRobotEpisodeLoader(
@@ -116,6 +118,7 @@ class LeRobotEpisodeLoader:
         dataset_path: str | Path,
         modality_configs: dict[str, ModalityConfig],
         decoder_kwargs: dict[str, Any] | None = None,
+        episode_indices: list[int] | None = None,
     ) -> None:
         """
         Initialize LeRobot episode loader with dataset path and modality configurations.
@@ -133,6 +136,13 @@ class LeRobotEpisodeLoader:
 
         # Load metadata files and parse dataset structure
         self._load_metadata()
+
+        if episode_indices is not None:
+            by_index = {int(item["episode_index"]): item for item in self.episodes_metadata}
+            missing = sorted(set(episode_indices).difference(by_index))
+            if missing:
+                raise ValueError(f"Selected episodes are absent from the dataset: {missing}")
+            self.episodes_metadata = [by_index[index] for index in episode_indices]
 
         # Set up modality configs after metadata is loaded
         self.modality_configs = self._parse_and_validate_modality_configs(modality_configs)

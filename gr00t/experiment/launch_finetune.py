@@ -120,8 +120,11 @@ if __name__ == "__main__":
 
     config.data.shard_size = ft_config.shard_size
     config.data.episode_sampling_rate = ft_config.episode_sampling_rate
+    config.data.seed = ft_config.seed
     config.data.num_shards_per_epoch = ft_config.num_shards_per_epoch
     config.data.ds_weights_alpha = ft_config.ds_weights_alpha
+    config.data.trajectory_count = ft_config.trajectory_count
+    config.data.trajectory_manifest_path = ft_config.trajectory_manifest_path
 
     config.training.save_only_model = ft_config.save_only_model
     config.training.resume_from_checkpoint = ft_config.resume_from_checkpoint

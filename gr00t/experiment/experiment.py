@@ -18,6 +18,7 @@
 import json
 import logging
 import os
+import shutil
 import warnings
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from transformers import TrainingArguments, set_seed
 
 from gr00t.configs.base_config import Config
 from gr00t.configs.training.training_config import check_resume_compatibility
+from gr00t.data.trajectory_selection import create_or_validate_manifest, selected_episode_indices
 
 # Use custom trainer that profiles data loading & forward times
 from gr00t.experiment.trainer import Gr00tTrainer, ProfCallback
@@ -174,6 +176,39 @@ def save_initial_actions_artifact(train_dataset, save_cfg_dir: Path):
     logging.info(f"Saved {len(initial_actions)} initial actions to {initial_actions_path}")
 
 
+def prepare_trajectory_manifest(config: Config, save_cfg_dir: Path) -> None:
+    """Create/validate and stage the trajectory selection manifest for training."""
+    count = config.data.trajectory_count
+    if count is None:
+        return
+    dataset_paths = [path for spec in config.data.datasets for path in spec.dataset_paths]
+    if len(dataset_paths) != 1:
+        raise ValueError("trajectory_count currently requires exactly one dataset path")
+
+    staged_path = (save_cfg_dir / "trajectory_manifest.json").resolve()
+    requested_path = (
+        Path(config.data.trajectory_manifest_path).expanduser().resolve()
+        if config.data.trajectory_manifest_path is not None
+        else staged_path
+    )
+
+    def prepare_on_rank0() -> None:
+        manifest = create_or_validate_manifest(dataset_paths[0], requested_path, config.data.seed)
+        selected_episode_indices(manifest, count)
+        if requested_path != staged_path:
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(requested_path, staged_path)
+
+    run_on_rank0(prepare_on_rank0, label="prepare_trajectory_manifest")
+    config.data.trajectory_manifest_path = str(staged_path)
+    logging.info(
+        "Using %d selected trajectories from %s (seed=%d)",
+        count,
+        staged_path,
+        config.data.seed,
+    )
+
+
 def run(config: Config):
     """Main training function."""
     warn_configs(config)
@@ -202,6 +237,8 @@ def run(config: Config):
 
     save_cfg_dir = output_dir / "experiment_cfg"
     processor_dir = output_dir / "processor"
+
+    prepare_trajectory_manifest(config, save_cfg_dir)
 
     # Rank-0-only write; wrapped so a rank-0 failure surfaces on every rank
     # instead of stranding peers at the next NCCL collective.

@@ -95,6 +95,31 @@ USE_WANDB=0 CUDA_VISIBLE_DEVICES=0 uv run bash examples/finetune.sh \
 For multiple GPUs, install the `distributed` extra and launch with `torchrun`,
 or set `NUM_GPUS` when using `examples/finetune.sh`.
 
+### Trajectory-budget experiments
+
+Pass `--trajectory-count` to train on a deterministic subset of complete
+episodes instead of the full dataset:
+
+```bash
+uv run python gr00t/experiment/launch_finetune.py \
+    --base-model-path nvidia/GR00T-N1.7-3B \
+    --dataset-path /path/to/lerobot-dataset \
+    --embodiment-tag LIBERO_PANDA \
+    --trajectory-count 10 \
+    --output-dir ./outputs/trajectories-010
+```
+
+The default seed is 43. Selection is a global, without-replacement shuffle of
+episode IDs, so runs made with the same dataset and seed are nested: the first
+5 trajectories in a 5-trajectory run are the same first 5 used by a
+10-trajectory run. The exact ordering is saved as
+`experiment_cfg/trajectory_manifest.json` and copied into checkpoints. To
+share one ordering across separate output directories, pass the same
+`--trajectory-manifest-path` to each run. Each trajectory budget should use a
+fresh output directory because it is an independent fine-tune from the base
+checkpoint. Override the seed with `--seed` when an experiment requires a
+different ordering.
+
 ## Dataset contract
 
 The input must be a GR00T-compatible LeRobot dataset. At minimum its `meta/`

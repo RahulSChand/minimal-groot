@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from pathlib import Path
+
 import numpy as np
 from tqdm import tqdm
 
@@ -22,6 +25,7 @@ from gr00t.data.dataset.sharded_single_step_dataset import ShardedSingleStepData
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.data.interfaces import BaseProcessor
 from gr00t.data.stats import generate_rel_stats, generate_stats
+from gr00t.data.trajectory_selection import selected_episode_indices
 from gr00t.utils.dist_utils import run_or_wait_on_rank0
 
 
@@ -39,6 +43,12 @@ class DatasetFactory:
 
         all_datasets = []
         all_weights = []
+        selected_episodes = None
+        if self.config.data.trajectory_count is not None:
+            if self.config.data.trajectory_manifest_path is None:
+                raise ValueError("trajectory_manifest_path must be prepared before building the dataset")
+            manifest = json.loads(Path(self.config.data.trajectory_manifest_path).read_text())
+            selected_episodes = selected_episode_indices(manifest, self.config.data.trajectory_count)
         for dataset_spec in tqdm(
             self.config.data.datasets,
             total=len(self.config.data.datasets),
@@ -62,6 +72,7 @@ class DatasetFactory:
                     episode_sampling_rate=self.config.data.episode_sampling_rate,
                     seed=self.config.data.seed,
                     allow_padding=self.config.data.allow_padding,
+                    episode_indices=selected_episodes,
                 )
                 datasets.append(dataset)
             dataset_lengths = np.array([len(dataset) for dataset in datasets])

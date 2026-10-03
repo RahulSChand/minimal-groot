@@ -179,6 +179,15 @@ class FinetuneConfig:
     episode_sampling_rate: float = 0.1
     """Sampling rate for the episodes."""
 
+    seed: int = 43
+    """Random seed used for trajectory selection, dataset sharding, and training."""
+
+    trajectory_count: int | None = None
+    """Train on this many complete trajectories, selected deterministically without replacement."""
+
+    trajectory_manifest_path: str | None = None
+    """Optional shared selection manifest. Defaults to OUTPUT_DIR/experiment_cfg/trajectory_manifest.json."""
+
     num_shards_per_epoch: int = int(1e5)
     """Number of shards to use for the dataset. reduce this number if vram is limited."""
 
@@ -197,6 +206,8 @@ class FinetuneConfig:
     Useful for CI/testing to skip the slow checkpoint shard loading."""
 
     def __post_init__(self) -> None:
+        if self.trajectory_count is not None and self.trajectory_count < 1:
+            raise ValueError(f"trajectory_count must be positive, got {self.trajectory_count}")
         if self.gradient_accumulation_steps < 1:
             raise ValueError(f"gradient_accumulation_steps must be >= 1, got {self.gradient_accumulation_steps}")
         if self.gradient_accumulation_steps > 1:

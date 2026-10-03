@@ -89,9 +89,13 @@ class DataConfig:
 
     # Data loading
     shuffle: bool = True
-    seed: int = 42
+    seed: int = 43
     multiprocessing_context: str = "fork"  # Options: "fork", "spawn", and "forkserver"
     allow_padding: bool = False
+
+    # Optional deterministic complete-episode subset for trajectory-budget experiments.
+    trajectory_count: int | None = None
+    trajectory_manifest_path: str | None = None
 
     # Subsample ratio for the dataset
     subsample_ratio: float = 1.0

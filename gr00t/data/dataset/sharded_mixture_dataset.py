@@ -216,7 +216,7 @@ class ShardedMixtureDataset(IterableDataset):
         datasets: list[ShardedDataset],
         weights: list[float],
         processor: BaseProcessor,
-        seed: int = 42,
+        seed: int = 43,
         training: bool = True,
         num_shards_per_epoch: int = int(1e5),
         override_pretraining_statistics: bool = False,

@@ -103,6 +103,7 @@ class ShardedSingleStepDataset(ShardedDataset):
         episode_sampling_rate: Fraction of episode timesteps to use (for efficiency)
         seed: Random seed for reproducible sharding and sampling
         allow_padding: Whether to allow padding of indices to valid range [0, max_length - 1]
+        episode_indices: Optional ordered source episode IDs to include
 
     Example:
         >>> dataset = ShardedSingleStepDataset(
@@ -128,8 +129,9 @@ class ShardedSingleStepDataset(ShardedDataset):
         modality_configs: dict[str, ModalityConfig],
         shard_size: int = 2**10,  # 1024 steps
         episode_sampling_rate: float = 0.1,
-        seed: int = 42,
+        seed: int = 43,
         allow_padding: bool = False,
+        episode_indices: list[int] | None = None,
     ):
         """Initialize single-step dataset with sharding configuration."""
         super().__init__(dataset_path)
@@ -147,6 +149,7 @@ class ShardedSingleStepDataset(ShardedDataset):
         self.episode_loader = LeRobotEpisodeLoader(
             dataset_path=dataset_path,
             modality_configs=modality_configs,
+            episode_indices=episode_indices,
         )
 
         # Create balanced shards from episode timesteps

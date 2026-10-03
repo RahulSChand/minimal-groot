@@ -168,6 +168,9 @@ class Config:
 
     def validate(self):
         """Validate configuration."""
+        if self.data.trajectory_count is not None and self.data.trajectory_count < 1:
+            raise ValueError(f"trajectory_count must be positive, got {self.data.trajectory_count}")
+
         # Check dataset path(s)
         embodiment_tags = set()
         for d_cfg in self.data.datasets:
