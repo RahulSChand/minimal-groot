@@ -9,5 +9,6 @@ dist/
 outputs/
 wandb/
 checkpoints/
+datasets/
 external_dependencies/
 gr00t/eval/sim/LIBERO/libero_uv/
