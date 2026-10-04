@@ -26,3 +26,11 @@ After this install the dependencies to run minimal-groot/
 Before running GR00T LIBERO checkpoint evaluations, read and follow
 `.config/groot_libero_eval_runbook.md`. Keep its reusable setup/protocol separate from
 machine-specific checkpoint-to-GPU assignments.
+
+For saved GR00T LIBERO bulk evaluations, the user's selected mode is compiled:
+use only minimal-groot on feat/gr00t-multiversion-libero-training and
+`.venv/bin/python -m gr00t.eval.evaluate_checkpoint --compile ...`.
+Read minimal-groot/AGENTS.md and the authoritative runbook above. Do not use
+post_train_vla, a reference adapter, or temporary paired-noise experiment scripts
+for GR00T evaluation. The general bootstrap repositories above are not alternate
+GR00T evaluation paths. The runbook contains the exact commands and completion gate.

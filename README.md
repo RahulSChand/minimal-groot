@@ -287,94 +287,52 @@ weights and Hugging Face configuration, the training callback copies:
 Do not discard these files; they are required to interpret model inputs and
 decode normalized actions later.
 
-## LIBERO checkpoint evaluation — one canonical path
+## LIBERO checkpoint evaluation — compiled bulk workflow
 
-Use this command for saved checkpoints. It uses the same native components as
-the low-level GR00T server: `Gr00tPolicy → Gr00tSimPolicyWrapper → LiberoEnv`.
-Training-time evaluation also delegates to this implementation. There is no
-`post_train_vla` runtime dependency or alternate reference action adapter.
+**Agents: read and follow the [authoritative compiled-evaluation runbook](.config/groot_libero_eval_runbook.md)
+before running any checkpoint.** It contains pinned setup/download commands,
+the full launch command, multi-GPU queue rules, and a copy-paste completion gate.
+Root [AGENTS.md](AGENTS.md) points to the same instructions.
+
+Use branch `feat/gr00t-multiversion-libero-training`, pinned to the same exact
+Git SHA on every machine. The only supported benchmark entry point is:
 
 ```bash
-uv sync --extra performance --extra eval
-bash gr00t/eval/sim/LIBERO/setup_libero.sh
-
-.venv/bin/python -m gr00t.eval.evaluate_checkpoint \
-  --checkpoint /path/to/checkpoint --suite libero_goal \
-  --gpu 0 --port 8765 --workers 4 --episodes-per-task 40 \
-  --output-dir outputs/goal-eager
-
-# The only inference-mode difference:
-.venv/bin/python -m gr00t.eval.evaluate_checkpoint \
-  --checkpoint /path/to/checkpoint --suite libero_goal \
-  --gpu 1 --port 8766 --workers 4 --episodes-per-task 40 \
-  --output-dir outputs/goal-compiled --compile
+# Run from minimal-groot; replace paths and choose a NEW output directory.
+env -u CUDA_VISIBLE_DEVICES -u GR00T_PAIRED_NOISE \
+  .venv/bin/python -u -m gr00t.eval.evaluate_checkpoint \
+  --checkpoint /absolute/path/to/epoch-directory \
+  --suite libero_goal \
+  --eval-python "$PWD/gr00t/eval/sim/LIBERO/libero_uv/.venv/bin/python" \
+  --gpu 0 --port 8765 \
+  --workers 4 --max-batch-size 4 \
+  --episodes-per-task 40 --seed 7 --timeout 14400 \
+  --output-dir /absolute/path/to/new-compiled-result-directory \
+  --compile
 ```
 
-For a paired smoke test, add `--task-id 5 --task-id 7 --episodes-per-task 10
---workers 1 --max-batch-size 1` to each command. That is 20 episodes **per mode**,
-not a full-suite result. Use identical checkpoints, seeds and initial states.
-One worker removes asynchronous episode-order/batching differences. Multiple
-workers use explicit synchronous inference batches, capped by active environments.
+This runs all ten subtasks x 40 episodes (400 total), uses native NVIDIA EGL GPU
+rendering, saves no videos, and records per-subtask SR in `summary.json`.
+Do not pass `--task-id` for a full benchmark. Use the suite assigned to the
+checkpoint; `libero_goal` above is an example, not a default for Object models.
+The launcher owns both server and simulator.
 
-The canonical benchmark protocol is all ten tasks, 40 initial states per task
-(0–39), seed 7, five-step replanning, ten settling steps, 256px source images,
-hardware NVIDIA EGL rendering, and **no video saving**. Limits are Spatial 220,
-Object 280, Goal 300, LIBERO-10 520 policy steps. The native environment owns
-reset/state initialization, observations, success checks and action conversion.
-RLDS gripper values (0=close, 1=open) remain unmodified in the policy. **Only
-`LiberoEnv.step` converts them** with `-sign(2*g - 1)` into simulator commands.
-The six arm deltas are passed through. Do not add conversion in a server/client.
+The user-selected bulk workflow **requires `--compile`**, although the CLI still
+defaults to eager when that flag is omitted. N1.5/N1.6 use Inductor
+reduce-overhead; N1.7 uses the cudagraphs backend automatically. N1 compilation
+is unsupported. Do not silently fall back to eager.
 
-`--compile` is opt-in for N1.5/N1.6/N1.7 and automatically selects the backend.
-N1.5/N1.6 compile the native diffusion transformer with Inductor,
-`reduce-overhead`, static shapes and full-graph capture. N1.7 uses PyTorch's
-`cudagraphs` backend: Inductor fusion exceeded a saved-observation numerical
-tolerance during testing. Native attention masks, diffusion steps and checkpoint
-action horizons remain unchanged. Compilation is not a bitwise-equivalence
-guarantee. N1 compilation is not enabled. Compiler errors and skipped CUDA graph
-capture fail evaluation rather than silently claiming compiled performance.
+Both modes share `Gr00tPolicy -> Gr00tSimPolicyWrapper -> LiberoEnv`.
+Only `LiberoEnv.step` converts the decoded RLDS gripper values to simulator
+commands. Do not add any conversion in a policy/client/server or use the retired
+reference adapter, `post_train_vla`, archived checkpoint runtime code, or a
+separate hand-assembled server/rollout benchmark.
 
-Compiled runs warm every task prompt and batch size 1 through the active batch
-cap before rollouts, preserving RNG state. Warmup cost is per input shape, **not
-per rollout**. Subsequent processes may reuse disk compiler caches, but still
-initialize and warm up. Set `TORCHINDUCTOR_CACHE_DIR` for a persistent cache.
-Native checkpoint inference uses BF16 weights; the dtype, policy path, backend,
-protocol and graph counts before/after rollouts are recorded in `run.json`.
-Older reference-runner latency measurements are not performance guarantees for
-this native runner.
-
-`--gpu` is the physical host GPU index for both inference and EGL. Do not set an
-outer CUDA device mask. Two independent jobs need different GPUs, ports and
-output directories. Servers bind only to loopback. CPU resources are still
-shared; two GPUs do not guarantee twice the throughput. Run long remote jobs
-under Supervisor. `--timeout` bounds the rollout phase, not loading/warmup.
-
-Checkpoint folders must contain their native config, weights, processor assets,
-embodiment mapping and statistics. Weight loading is strict. Download only the
-requested folder and pin its Hub revision. N1.7 checkpoints without bundled
-`vlm_assets` need their Cosmos/Qwen processor assets available in the Hub cache
-or bundled locally, with the required access configured.
-
-Output directories must be new. Results include `strict_load.json`,
-`suite.json`, `warmup.json`, `run.json`, `rollout.log`, `episodes.jsonl`
-and `summary.json`. Summaries include per-subtask SR and separate warmup/rollout
-times. Completion requires exactly the requested task/initial-state pairs, no
-duplicates or rollout errors, and matching aggregate metrics. Weights are never
-deleted and results are never uploaded automatically.
-
-### Migration and historical results
-
-`ReferenceLiberoPolicy` and `reference_simulator` are retired and fail with a
-migration message. The old setup script forwards to the native setup. The old
-`evaluate_live_model` import forwards to the canonical training evaluator.
-The low-level `run_gr00t_server.py`/`rollout_policy.py` APIs remain available
-for custom simulation, but are not a second supported benchmark protocol.
-
-Historical reference-adapter runs skipped a required gripper conversion. Their
-success rates are not valid evidence of checkpoint quality. A later small
-N1.6 check on Goal tasks 5/7 improved from 5/20 to 12/20 after fixing that adapter,
-but it was not a full-suite score or compile/eager parity result. All new
-benchmark comparisons must use the canonical command above and fresh outputs.
+For GPU 1, use `--gpu 1 --port 8766`, another assigned checkpoint and another
+output directory. Keep one active checkpoint job per physical GPU. Run queues
+under managed processes and validate the full result before marking it complete.
+See the runbook for exact environment/cache settings, provenance, error handling,
+and the distinction between bulk evaluation and temporary diagnostic experiments.
 
 ## Scope note
 
