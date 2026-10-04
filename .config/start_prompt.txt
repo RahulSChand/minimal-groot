@@ -1,0 +1,28 @@
+Fully bootstrap this cluster and verify everything works.
+
+SSH command: given with the prompt
+
+Use these credentials from my local Mac:
+- GitHub: `gh auth token`
+- Hugging Face: `/Users/rahulchand/.cache/huggingface/token`
+- W&B: `/Users/rahulchand/Desktop/post_robot/.config/wandb_token.txt`
+
+Clone:
+- https://github.com/RahulSChand/post_train_vla.git
+- https://github.com/RahulSChand/openpi_easy.git
+- https://github.com/RahulSChand/minimal-groot
+
+You will need the paligemma tokenizer thing please read the readme of openpi (you dont haev to setup openpi but it has the instruction of paligemma stuff that pi0 or pi0.5 models use)
+
+Use HTTPS GitHub authentication. Do not create GitHub SSH keys, use agent forwarding, edit my SSH config, or ask me to paste tokens. Transfer credentials through the SSH connection without displaying them. Persist authentication on the cluster so future git, Hugging Face, and W&B commands work.
+
+Install the repositorie (only install env for post_train_vla NOT for openpi_easy) and their dependencies, then verify (by verify dont run any long tests or soemthing just check if the repos exist and stuff):
+- GitHub can pull the private repository
+- Hugging Face authentication works
+- `wandb login --verify` succeeds
+
+After this install the dependencies to run minimal-groot/
+
+Before running GR00T LIBERO checkpoint evaluations, read and follow
+`.config/groot_libero_eval_runbook.md`. Keep its reusable setup/protocol separate from
+machine-specific checkpoint-to-GPU assignments.
