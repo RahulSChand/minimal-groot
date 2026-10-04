@@ -82,8 +82,8 @@ EVAL_HF_REV=47c9dd8aa90e0f994177ed32735e3b53e2a408bb
 EVAL_HF_SUBDIR=n1d6/goal/seed-043/trajectories-050/epoch-007
 EVAL_DOWNLOAD_DIR="$PWD/checkpoints/groot-libero"
 
-.venv/bin/hf download "$EVAL_HF_REPO" \
-  --revision "$EVAL_HF_REV" --include "$EVAL_HF_SUBDIR/*" \
+.venv/bin/python -m gr00t.eval.hf_download --repo-id "$EVAL_HF_REPO" \
+  --revision "$EVAL_HF_REV" --subfolder "$EVAL_HF_SUBDIR" \
   --local-dir "$EVAL_DOWNLOAD_DIR"
 
 EVAL_CHECKPOINT="$EVAL_DOWNLOAD_DIR/$EVAL_HF_SUBDIR"
@@ -92,6 +92,15 @@ test -f "$EVAL_CHECKPOINT/embodiment_id.json"
 ```
 
 Pass the actual epoch directory to `--checkpoint`, not the download root.
+The helper retries transient HF failures up to six calls with 30–300s exponential
+backoff plus jitter; 429 waits at least 300s and honors longer `Retry-After`.
+It downloads one file at a time and reuses cached/partial files. HF's own internal
+retries still apply. Exit 75 means deferred: the existing queue must record that
+checkpoint as unfinished, skip its evaluation and continue (handle this exit
+explicitly, rather than allowing `set -e` to terminate the queue). Retry it later;
+do not count it as zero SR. Auth/missing-file/disk errors are not blindly retried.
+No queue or inference behavior is changed. Keep downloads to at most one or two
+checkpoints per host; this helper does not coordinate separate processes/hosts.
 Retain all weights/shards, config, processor assets, statistics and embodiment
 mapping. Processor files may be at the root or its native `processor/` directory.
 Verify available checksums. Strict loading rejects missing/unexpected/mismatched
