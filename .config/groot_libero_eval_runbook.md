@@ -8,8 +8,8 @@ machine, repository contents, and number of GPUs.
 
 Unless a run explicitly specifies otherwise:
 
-- Evaluate 40 rollouts per checkpoint.
-- Evaluate task 0 using initial states 0 through 39.
+- Evaluate 40 rollouts per subtask: all 10 suite tasks using initial states 0 through 39.
+- Require 400 total rollouts per checkpoint.
 - Use seed 7.
 - Use 40 parallel simulator workers when the machine has enough CPU and RAM.
 - Cap model inference batches at 8 with a 10 ms batching window.
@@ -18,7 +18,8 @@ Unless a run explicitly specifies otherwise:
 - Do not save videos during checkpoint sweeps.
 - Use the suite-specific policy-step limit from `post_train_vla.evaluator.MAX_STEPS`.
 
-Treat a checkpoint result as complete only when it contains exactly 40 unique episodes,
+Treat a checkpoint result as complete only when it contains exactly 400 unique episodes
+(10 task IDs x 40 initial-state IDs),
 has no rollout errors, and its summary agrees with the episode records. A 20-rollout
 result is not interchangeable with this protocol and must not be resumed or aggregated
 as a 40-rollout result.
@@ -104,7 +105,7 @@ Use this sequence for each assigned checkpoint:
 1. Download the checkpoint directory into a staging area pinned to the repository
    revision discovered at queue start.
 2. Verify the download and load weights strictly.
-3. Run the complete 40-rollout evaluation into a fresh result directory.
+3. Run the complete 400-rollout evaluation (40 per subtask) into a fresh result directory.
 4. Validate the summary and raw episode records.
 5. Preserve metadata, logs, summaries, and episode records.
 6. Only after successful validation, delete that checkpoint's downloaded
@@ -158,4 +159,3 @@ Before declaring a sweep started, report:
 - First checkpoint's strict-load result.
 - First valid completed checkpoint result, including rollout-error count.
 - Supervisor process names, result directory, disk remaining, and resume behavior.
-
