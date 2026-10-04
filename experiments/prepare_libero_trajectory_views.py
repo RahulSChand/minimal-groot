@@ -8,10 +8,20 @@ import json
 from pathlib import Path
 import shutil
 
-from gr00t.data.trajectory_selection import create_or_validate_manifest, selected_episode_indices
+from gr00t.data.dataset.trajectory_subset import create_or_validate_manifest
 
 
 DEFAULT_BUDGETS = (10, 15, 25, 50)
+SOURCE_DATASETS = {
+    "goal": "libero_goal_no_noops_1.0.0_lerobot",
+    "object": "libero_object_no_noops_1.0.0_lerobot",
+    "long": "libero_10_no_noops_1.0.0_lerobot",
+}
+MANIFEST_SUITES = {
+    "goal": "libero_goal",
+    "object": "libero_object",
+    "long": "libero_10",
+}
 
 
 def read_json_lines(path: Path) -> list[dict]:
@@ -30,12 +40,12 @@ def write_json_lines(path: Path, rows: list[dict]) -> None:
 
 
 def prepare_view(root: Path, suite: str, count: int, seed: int, shared: dict) -> Path:
-    source = root / "datasets" / f"libero_{suite}_no_noops_1.0.0_lerobot"
+    source = root / "datasets" / SOURCE_DATASETS[suite]
     view = root / "datasets" / f"libero_{suite}_seed{seed}_trajectories_{count:03d}"
-    selected = selected_episode_indices(shared, count)
+    selected = shared["ordered_episode_indices"][:count]
 
     expected_manifest = {
-        "suite": f"libero_{suite}",
+        "suite": MANIFEST_SUITES[suite],
         "trajectory_count": count,
         "total_frames": 0,
         "seed": seed,
@@ -89,14 +99,14 @@ def prepare_view(root: Path, suite: str, count: int, seed: int, shared: dict) ->
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--suite", choices=("goal", "object"), action="append", required=True)
+    parser.add_argument("--suite", choices=tuple(SOURCE_DATASETS), action="append", required=True)
     parser.add_argument("--seed", type=int, default=43)
     parser.add_argument("--budgets", type=int, nargs="+", default=DEFAULT_BUDGETS)
     args = parser.parse_args()
 
     root = args.root.resolve()
     for suite in args.suite:
-        source = root / "datasets" / f"libero_{suite}_no_noops_1.0.0_lerobot"
+        source = root / "datasets" / SOURCE_DATASETS[suite]
         shared_path = root / "datasets/trajectory_manifests" / f"libero_{suite}_seed{args.seed}.json"
         shared = create_or_validate_manifest(source, shared_path, args.seed)
         for count in args.budgets:

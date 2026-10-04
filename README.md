@@ -102,6 +102,62 @@ as `--base-model-path` to train the older models. `--model-version N1` (or N1.5/
 checks that the supplied checkpoint matches your intended version. The loader
 checks for missing, unexpected, or mismatched weights before training.
 
+### LIBERO Long dataset
+
+The long-horizon LIBERO suite is named `libero_10` in LIBERO and in the IPEC
+LeRobot release. Use this external-video dataset; there is no separate
+`libero_long` repository:
+
+```text
+Hugging Face: IPEC-COMMUNITY/libero_10_no_noops_1.0.0_lerobot
+revision: e1a223d30b896c1613f270a2bfc63d382b3de7e1
+local path: datasets/libero_10_no_noops_1.0.0_lerobot
+```
+
+Download the pinned revision from the repository root:
+
+```bash
+.venv/bin/hf download \
+  IPEC-COMMUNITY/libero_10_no_noops_1.0.0_lerobot \
+  --repo-type dataset \
+  --revision e1a223d30b896c1613f270a2bfc63d382b3de7e1 \
+  --local-dir datasets/libero_10_no_noops_1.0.0_lerobot
+```
+
+Keep `meta/modality.json` matched to the checked-out GR00T runtime and generate
+`meta/stats.json` from this exact complete dataset before creating trajectory
+subsets. Do not reuse normalization statistics from Spatial, Goal, or Object.
+
+### LIBERO Long seed-43 trajectory campaign
+
+The fixed campaign runs independent full-model fine-tunes for N1.5, N1.6, and
+N1.7 on nested 50- and 100-trajectory subsets. Every run starts from its own
+base checkpoint and trains for exactly six epochs. Prepare and validate it with:
+
+```bash
+.venv/bin/python -m gr00t.data.stats \
+  --dataset-path datasets/libero_10_no_noops_1.0.0_lerobot \
+  --embodiment-tag LIBERO_PANDA
+.venv/bin/python experiments/prepare_libero_trajectory_views.py \
+  --suite long --seed 43 --budgets 50 100
+.venv/bin/python experiments/run_long_seed43.py --validate-only
+```
+
+Launch the detached campaign and monitor its persistent log:
+
+```bash
+setsid .venv/bin/python experiments/run_long_seed43.py \
+  > outputs/groot-long-seed43.log 2>&1 < /dev/null &
+tail -f outputs/groot-long-seed43.log
+```
+
+The six runs produce 36 inference checkpoints: two trajectory budgets times
+three model versions times six epochs. Each completed epoch is uploaded beneath
+`Chand0320/groot-libero-long-trajectory-efficiency`, verified against the remote
+bytes, recorded in `publication_receipts/`, and then removed locally. A failed
+upload leaves the checkpoint on disk and stops the campaign rather than deleting
+an unverified artifact.
+
 ### LIBERO Spatial trajectory subsets
 
 Run independent full-model fine-tunes on 5, 10, 15, 25, and 50 trajectories:

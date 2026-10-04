@@ -177,9 +177,9 @@ def main():
         raise FileExistsError(f'Use a fresh output directory: {args.output}')
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((args.dataset / 'trajectory_manifest.json').read_text())
-    suites = {'libero_spatial', 'libero_goal', 'libero_object'}
+    suites = {'libero_spatial', 'libero_goal', 'libero_object', 'libero_10'}
     if manifest['suite'] not in suites or manifest['trajectory_count'] < 1:
-        raise ValueError('Expected a nonempty LIBERO Spatial, Goal, or Object trajectory manifest')
+        raise ValueError('Expected a nonempty LIBERO Spatial, Goal, Object, or Long trajectory manifest')
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
