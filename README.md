@@ -164,7 +164,7 @@ Run independent full-model fine-tunes on 5, 10, 15, 25, and 50 trajectories:
 
 ```bash
 uv sync --extra performance --extra eval
-bash examples/LIBERO/setup_reference_eval.sh
+bash gr00t/eval/sim/LIBERO/setup_libero.sh
 bash examples/LIBERO/sample_efficiency.sh 1.5
 ```
 
@@ -176,9 +176,9 @@ for version in 1 1.5 1.6 1.7; do
 done
 ```
 
-The launcher uses `/root/libero_spatial_post` and the policy-agnostic evaluator
-in `/root/post_train_vla`. Set `BASE_MODEL_PATH`, `DATASET_ROOT`, `OUTPUT_DIR`,
-`REFERENCE_PROJECT`, or `EVAL_PYTHON` to override those locations. Pass `1`, `1.6`, or
+The launcher uses `/root/libero_spatial_post` and the canonical native LIBERO
+evaluator below. Set `BASE_MODEL_PATH`, `DATASET_ROOT`, `OUTPUT_DIR`, or
+`EVAL_PYTHON` to override those locations. Pass `1`, `1.6`, or
 `1.7` to select another generation. Weights can be a local directory or the
 corresponding `nvidia/GR00T-N1-2B` or `nvidia/GR00T-N1.x-3B` Hugging Face repository.
 
@@ -192,7 +192,7 @@ final batches; action chunks repeat the final frame within each episode.
 Every budget starts again from the base checkpoint.
 
 Each epoch is evaluated on LIBERO Spatial task 0, initial states 0–19, seed 7,
-with 20 simulator workers, inference batches up to 8, five-step replanning,
+with up to eight active simulator workers (the inference batch cap), five-step replanning,
 ten settling steps, and a 220-step limit. Training stops after at least three
 epochs when two consecutive epochs fail to improve the best success count,
 without a fixed epoch limit. These executable defaults supersede the older
@@ -202,15 +202,15 @@ GR00T retains its own image processing, action normalization, and native action
 horizons (N1/N1.5: 16, N1.6: 50, N1.7: 40, read from the checkpoint). N1 also
 retains its native 16 diffusion inference steps. The evaluator
 sends 256px source images for GR00T to resize. Actions already use LIBERO delta
-commands and receive no extra state subtraction or gripper inversion. Shared
+commands with no extra state subtraction; the native environment converts
+RLDS gripper values to simulator commands exactly once. Shared
 dataset normalization statistics remain fixed across budgets. N1 and N1.5 use the
 new-embodiment projector at index 31; N1.6 and N1.7 use their LIBERO projector
 at index 2.
 
-The reference simulator environment must be available through `EVAL_PYTHON`.
-The setup script pins LIBERO/MuJoCo/robosuite and shares PyTorch with the
-model environment. The existing `setup_libero.sh` provides a separate,
-standalone environment for the general GR00T evaluator.
+The canonical simulator environment must be available through `EVAL_PYTHON`.
+The setup script pins LIBERO/MuJoCo/robosuite and shares PyTorch with the model
+environment. Both training and checkpoint evaluation use this same setup.
 The live training model serves evaluation, avoiding a second GPU model copy.
 
 ```bash
@@ -287,71 +287,94 @@ weights and Hugging Face configuration, the training callback copies:
 Do not discard these files; they are required to interpret model inputs and
 decode normalized actions later.
 
-## LIBERO simulation evaluation
+## LIBERO checkpoint evaluation — one canonical path
 
-LIBERO runs in a dedicated virtual environment because its Gymnasium, MuJoCo,
-robosuite, and NumPy requirements differ from the model environment. Set it up
-once from the repository root. On a fresh Ubuntu host, install the shared EGL
-libraries first:
-
-```bash
-sudo apt update
-sudo apt install libegl1-mesa-dev libglu1-mesa
-```
-
-Then create the LIBERO environment:
+Use this command for saved checkpoints. It uses the same native components as
+the low-level GR00T server: `Gr00tPolicy → Gr00tSimPolicyWrapper → LiberoEnv`.
+Training-time evaluation also delegates to this implementation. There is no
+`post_train_vla` runtime dependency or alternate reference action adapter.
 
 ```bash
+uv sync --extra performance --extra eval
 bash gr00t/eval/sim/LIBERO/setup_libero.sh
+
+.venv/bin/python -m gr00t.eval.evaluate_checkpoint \
+  --checkpoint /path/to/checkpoint --suite libero_goal \
+  --gpu 0 --port 8765 --workers 4 --episodes-per-task 40 \
+  --output-dir outputs/goal-eager
+
+# The only inference-mode difference:
+.venv/bin/python -m gr00t.eval.evaluate_checkpoint \
+  --checkpoint /path/to/checkpoint --suite libero_goal \
+  --gpu 1 --port 8766 --workers 4 --episodes-per-task 40 \
+  --output-dir outputs/goal-compiled --compile
 ```
 
-The setup script clones the upstream-pinned LIBERO commit into
-`external_dependencies/LIBERO`, creates
-`gr00t/eval/sim/LIBERO/libero_uv/.venv`, and performs a headless environment
-smoke test. It leaves an existing LIBERO checkout untouched and fails if that
-checkout is on a different commit.
+For a paired smoke test, add `--task-id 5 --task-id 7 --episodes-per-task 10
+--workers 1 --max-batch-size 1` to each command. That is 20 episodes **per mode**,
+not a full-suite result. Use identical checkpoints, seeds and initial states.
+One worker removes asynchronous episode-order/batching differences. Multiple
+workers use explicit synchronous inference batches, capped by active environments.
 
-The published checkpoint is stored in a nested Hugging Face repository folder,
-so download that folder into a local checkpoint directory:
+The canonical benchmark protocol is all ten tasks, 40 initial states per task
+(0–39), seed 7, five-step replanning, ten settling steps, 256px source images,
+hardware NVIDIA EGL rendering, and **no video saving**. Limits are Spatial 220,
+Object 280, Goal 300, LIBERO-10 520 policy steps. The native environment owns
+reset/state initialization, observations, success checks and action conversion.
+RLDS gripper values (0=close, 1=open) remain unmodified in the policy. **Only
+`LiberoEnv.step` converts them** with `-sign(2*g - 1)` into simulator commands.
+The six arm deltas are passed through. Do not add conversion in a server/client.
 
-```bash
-uv run hf download nvidia/GR00T-N1.7-LIBERO \
-    --include "libero_10/config.json" \
-              "libero_10/embodiment_id.json" \
-              "libero_10/model-*.safetensors" \
-              "libero_10/model.safetensors.index.json" \
-              "libero_10/processor_config.json" \
-              "libero_10/statistics.json" \
-    --local-dir checkpoints/GR00T-N1.7-LIBERO
-```
+`--compile` is opt-in for N1.5/N1.6/N1.7 and automatically selects the backend.
+N1.5/N1.6 compile the native diffusion transformer with Inductor,
+`reduce-overhead`, static shapes and full-graph capture. N1.7 uses PyTorch's
+`cudagraphs` backend: Inductor fusion exceeded a saved-observation numerical
+tolerance during testing. Native attention masks, diffusion steps and checkpoint
+action horizons remain unchanged. Compilation is not a bitwise-equivalence
+guarantee. N1 compilation is not enabled. Compiler errors and skipped CUDA graph
+capture fail evaluation rather than silently claiming compiled performance.
 
-Start the policy server in the primary project environment:
+Compiled runs warm every task prompt and batch size 1 through the active batch
+cap before rollouts, preserving RNG state. Warmup cost is per input shape, **not
+per rollout**. Subsequent processes may reuse disk compiler caches, but still
+initialize and warm up. Set `TORCHINDUCTOR_CACHE_DIR` for a persistent cache.
+Native checkpoint inference uses BF16 weights; the dtype, policy path, backend,
+protocol and graph counts before/after rollouts are recorded in `run.json`.
+Older reference-runner latency measurements are not performance guarantees for
+this native runner.
 
-```bash
-uv run --extra eval python gr00t/eval/run_gr00t_server.py \
-    --model-path checkpoints/GR00T-N1.7-LIBERO/libero_10 \
-    --embodiment-tag LIBERO_PANDA \
-    --use-sim-policy-wrapper
-```
+`--gpu` is the physical host GPU index for both inference and EGL. Do not set an
+outer CUDA device mask. Two independent jobs need different GPUs, ports and
+output directories. Servers bind only to loopback. CPU resources are still
+shared; two GPUs do not guarantee twice the throughput. Run long remote jobs
+under Supervisor. `--timeout` bounds the rollout phase, not loading/warmup.
 
-Then start a short rollout in a second terminal using the LIBERO environment:
+Checkpoint folders must contain their native config, weights, processor assets,
+embodiment mapping and statistics. Weight loading is strict. Download only the
+requested folder and pin its Hub revision. N1.7 checkpoints without bundled
+`vlm_assets` need their Cosmos/Qwen processor assets available in the Hub cache
+or bundled locally, with the required access configured.
 
-```bash
-gr00t/eval/sim/LIBERO/libero_uv/.venv/bin/python \
-    gr00t/eval/rollout_policy.py \
-    --n-episodes 1 \
-    --policy-client-host 127.0.0.1 \
-    --policy-client-port 5555 \
-    --max-episode-steps 40 \
-    --env-name libero_sim/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it \
-    --n-action-steps 8 \
-    --n-envs 1
-```
+Output directories must be new. Results include `strict_load.json`,
+`suite.json`, `warmup.json`, `run.json`, `rollout.log`, `episodes.jsonl`
+and `summary.json`. Summaries include per-subtask SR and separate warmup/rollout
+times. Completion requires exactly the requested task/initial-state pairs, no
+duplicates or rollout errors, and matching aggregate metrics. Weights are never
+deleted and results are never uploaded automatically.
 
-For a benchmark-length evaluation, use `--max-episode-steps 720` and increase
-the episode and environment counts. The checkpoint must be LIBERO-finetuned
-and contain `embodiment_id.json`, `processor_config.json`, and
-`statistics.json`; the generic SO100 or base checkpoint is not a substitute.
+### Migration and historical results
+
+`ReferenceLiberoPolicy` and `reference_simulator` are retired and fail with a
+migration message. The old setup script forwards to the native setup. The old
+`evaluate_live_model` import forwards to the canonical training evaluator.
+The low-level `run_gr00t_server.py`/`rollout_policy.py` APIs remain available
+for custom simulation, but are not a second supported benchmark protocol.
+
+Historical reference-adapter runs skipped a required gripper conversion. Their
+success rates are not valid evidence of checkpoint quality. A later small
+N1.6 check on Goal tasks 5/7 improved from 5/20 to 12/20 after fixing that adapter,
+but it was not a full-suite score or compile/eager parity result. All new
+benchmark comparisons must use the canonical command above and fresh outputs.
 
 ## Scope note
 

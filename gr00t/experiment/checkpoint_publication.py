@@ -77,7 +77,8 @@ def verify_offline(checkpoint, output):
     from transformers import AutoModel, AutoProcessor
 
     import gr00t.model  # noqa: F401
-    from gr00t.eval.reference_libero import ReferenceLiberoPolicy
+    from gr00t.eval.libero_simulator import batch_observations
+    from gr00t.policy.gr00t_policy import Gr00tPolicy, Gr00tSimPolicyWrapper
 
     torch.set_num_threads(4)
     model, info = AutoModel.from_pretrained(str(checkpoint), output_loading_info=True, local_files_only=True)
@@ -90,9 +91,15 @@ def verify_offline(checkpoint, output):
     model.eval().to("cuda")
     torch.manual_seed(42)
     with np.load(checkpoint / "load_fixture.npz", allow_pickle=False) as fixture:
-        observation = {"observation/" + key: fixture[key] for key in ("image", "wrist_image", "state")}
-        observation["prompt"] = str(fixture["prompt"])
-    actions = ReferenceLiberoPolicy(model, processor).infer(observation)["actions"]
+        observation = {"video." + key: fixture[key] for key in ("image", "wrist_image")}
+        keys = ("x", "y", "z", "roll", "pitch", "yaw", "gripper")
+        observation.update(
+            {"state." + key: fixture["state"][i : 8 if key == "gripper" else i + 1] for i, key in enumerate(keys)}
+        )
+        observation["annotation.human.action.task_description"] = str(fixture["prompt"])
+    native = Gr00tSimPolicyWrapper(Gr00tPolicy.from_model(model, processor))
+    decoded, _ = native.get_action(batch_observations([observation]))
+    actions = np.concatenate([decoded["action." + key][0] for key in keys], axis=-1)
     if actions.shape != (model.config.action_horizon, 7) or not np.isfinite(actions).all():
         raise RuntimeError(f"Invalid action output: {actions.shape}")
     write_json(

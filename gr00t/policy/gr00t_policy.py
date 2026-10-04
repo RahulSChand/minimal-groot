@@ -20,6 +20,7 @@ This module provides the core policy classes for running Gr00t models:
 - Gr00tSimPolicyWrapper: Wrapper for compatibility with existing Gr00t simulation environments
 """
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +88,7 @@ class Gr00tPolicy(BasePolicy):
         *,
         device: int | str,
         strict: bool = True,
+        compile_model: bool = False,
     ):
         """Initialize the Gr00t Policy.
 
@@ -106,8 +108,11 @@ class Gr00tPolicy(BasePolicy):
         model_dir = Path(model_path)
 
         # Load the pretrained model and move to target device with bfloat16 precision
-        model = AutoModel.from_pretrained(model_dir)
+        model, self.loading_info = AutoModel.from_pretrained(model_dir, output_loading_info=True)
+        if any(self.loading_info.get(k) for k in ("missing_keys", "unexpected_keys", "mismatched_keys", "error_msgs")):
+            raise RuntimeError(f"Checkpoint failed strict loading: {self.loading_info}")
         model.eval()  # Set model to evaluation mode
+        model.requires_grad_(False)
         model.to(device=device, dtype=torch.bfloat16)
         self.model = model
 
@@ -122,6 +127,29 @@ class Gr00tPolicy(BasePolicy):
         )
         self.processor: BaseProcessor = AutoProcessor.from_pretrained(processor_dir)
         self.processor.eval()
+
+        self._configure(embodiment_tag, compile_model)
+
+    @classmethod
+    def from_model(cls, model, processor, embodiment_tag=EmbodimentTag.LIBERO_PANDA, *, compile_model=False):
+        """Use a live model through the same inference path as saved checkpoints."""
+        policy = cls.__new__(cls)
+        BasePolicy.__init__(policy, strict=True)
+        policy.model, policy.processor = model, processor
+        policy._configure(EmbodimentTag.resolve(embodiment_tag), compile_model)
+        return policy
+
+    def _configure(self, embodiment_tag, compile_model):
+        self.compile_model = compile_model
+        self.metadata = {
+            "model_type": self.model.config.model_type,
+            "action_horizon": self.model.config.action_horizon,
+            "policy_path": "Gr00tPolicy/Gr00tSimPolicyWrapper/LiberoEnv",
+        }
+        if compile_model:
+            from gr00t.eval.compile_policy import compile_action_transformer
+
+            self.metadata["compile"] = compile_action_transformer(self.model)
 
         # Store embodiment-specific configurations
         self.embodiment_tag = embodiment_tag
@@ -383,6 +411,12 @@ class Gr00tPolicy(BasePolicy):
         Returns:
             Tuple of (actions_dict, info_dict)
         """
+        started = time.monotonic()
+        if getattr(self, "compile_model", False):
+            from torch._dynamo.utils import counters
+
+            torch.compiler.cudagraph_mark_step_begin()
+            skips = counters["inductor"]["cudagraph_skips"]
         # Step 1: Split batched observation into individual observations
         unbatched_observations = self._unbatch_observation(observation)
         processed_inputs = []
@@ -400,8 +434,11 @@ class Gr00tPolicy(BasePolicy):
         collated_inputs = _rec_to_dtype(collated_inputs, dtype=torch.bfloat16)
 
         # Step 4: Run model inference to predict actions
-        with torch.inference_mode():
+        device_type = next(self.model.parameters()).device.type
+        with torch.inference_mode(), torch.autocast(device_type, dtype=torch.bfloat16, enabled=device_type == "cuda"):
             model_pred = self.model.get_action(**collated_inputs)
+        if getattr(self, "compile_model", False) and counters["inductor"]["cudagraph_skips"] > skips:
+            raise RuntimeError("CUDA graph capture skipped; refusing silent fallback with --compile")
         normalized_action = model_pred["action_pred"].float()
 
         # Step 5: Decode actions from normalized space back to physical units
@@ -414,7 +451,10 @@ class Gr00tPolicy(BasePolicy):
 
         # Cast all actions to float32 for consistency
         casted_action = {key: value.astype(np.float32) for key, value in unnormalized_action.items()}
-        return casted_action, {}
+        return casted_action, {
+            "infer_ms": (time.monotonic() - started) * 1000,
+            "batch_size": len(unbatched_observations),
+        }
 
     def check_action(self, action: dict[str, Any]) -> None:
         """Validate that the action has the correct structure and types.

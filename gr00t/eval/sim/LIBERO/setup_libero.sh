@@ -1,91 +1,55 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euo pipefail
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Set paths relative to script location
-LIBERO_REPO="$SCRIPT_DIR/../../../../external_dependencies/LIBERO"
-PROJECT_REPO="$SCRIPT_DIR/../../../.."
-LIBERO_UV_ENV="$SCRIPT_DIR/libero_uv"
-LIBERO_URL="https://github.com/Lifelong-Robot-Learning/LIBERO.git"
-LIBERO_COMMIT="8f1084e3132a39270c3a13ebe37270a43ece2a01"
-
-# minimal-groot does not carry upstream's full submodule tree. Clone only the
-# pinned LIBERO dependency, and refuse to overwrite an existing checkout.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+LIBERO_REPO="$PROJECT_ROOT/external_dependencies/LIBERO"
+LIBERO_COMMIT=8f1084e3132a39270c3a13ebe37270a43ece2a01
+SIM_ENV="$PROJECT_ROOT/gr00t/eval/sim/LIBERO/libero_uv/.venv"
+cd "$PROJECT_ROOT"
 if [[ ! -d "$LIBERO_REPO/.git" ]]; then
-    mkdir -p "$(dirname "$LIBERO_REPO")"
-    git clone "$LIBERO_URL" "$LIBERO_REPO"
-    git -C "$LIBERO_REPO" checkout --detach "$LIBERO_COMMIT"
+  mkdir -p "$LIBERO_REPO"
+  git -C "$LIBERO_REPO" init --quiet
+  git -C "$LIBERO_REPO" remote add origin https://github.com/Lifelong-Robot-Learning/LIBERO.git
+  git -C "$LIBERO_REPO" fetch --depth 1 origin "$LIBERO_COMMIT"
+  git -C "$LIBERO_REPO" checkout --detach FETCH_HEAD
 elif [[ "$(git -C "$LIBERO_REPO" rev-parse HEAD)" != "$LIBERO_COMMIT" ]]; then
-    echo "Existing LIBERO checkout is not at the expected commit: $LIBERO_COMMIT" >&2
-    echo "Move it aside or check out that commit before rerunning this setup." >&2
-    exit 1
+  echo "LIBERO must be at $LIBERO_COMMIT: $LIBERO_REPO" >&2
+  exit 1
 fi
-
-# python -m pip install cmake==3.18.4
-rm -rf "$LIBERO_UV_ENV"
-mkdir -p "$LIBERO_UV_ENV"
-uv venv "$LIBERO_UV_ENV/.venv" --python 3.12
-source "$LIBERO_UV_ENV/.venv/bin/activate"
-# LIBERO's pinned requirements predate Python 3.12. Patch only the pins that
-# otherwise build from source or pull source-only transitive deps on py3.12.
-PATCHED_REQUIREMENTS="$LIBERO_UV_ENV/requirements-py312.txt"
-LIBERO_REPO_PATH="$LIBERO_REPO" PATCHED_REQUIREMENTS_PATH="$PATCHED_REQUIREMENTS" python - <<'PY'
+if [[ ! -x "$SIM_ENV/bin/python" ]]; then
+  uv venv "$SIM_ENV" --python "$PROJECT_ROOT/.venv/bin/python"
+fi
+# Reuse the existing model environment's PyTorch and utility packages. The sim
+# environment supplies its own pinned MuJoCo/robosuite/NumPy dependencies.
+SIM_ENV="$SIM_ENV" "$PROJECT_ROOT/.venv/bin/python" - <<'PY'
 import os
 from pathlib import Path
-
-replacements = {
-    "hydra-core": "hydra-core==1.3.2",
-    "numpy": "numpy==1.26.4",
-    "transformers": "transformers==4.57.3",
-    "opencv-python": "opencv-python==4.10.0.84",
-    "matplotlib": "matplotlib==3.9.4",
-    "wandb": "wandb==0.18.7",  # py3.12: 0.13.1 -> pathtools -> removed `imp`
-}
-
-src = Path(os.environ["LIBERO_REPO_PATH"]) / "requirements.txt"
-dst = Path(os.environ["PATCHED_REQUIREMENTS_PATH"])
-lines = []
-for raw in src.read_text().splitlines():
-    stripped = raw.strip()
-    if not stripped or stripped.startswith("#"):
-        lines.append(raw)
-        continue
-    name = stripped.split("==", 1)[0].strip().lower()
-    lines.append(replacements.get(name, raw))
-dst.write_text("\n".join(lines) + "\n")
+import sysconfig
+root = Path.cwd()
+site = Path(os.environ['SIM_ENV']) / 'lib/python3.12/site-packages'
+(site / 'minimal_groot_shared.pth').write_text(sysconfig.get_path('purelib') + '\n' + str(root) + '\n')
 PY
-uv pip install --requirements "$PATCHED_REQUIREMENTS"
-uv pip install -e "$LIBERO_REPO" --config-settings editable_mode=compat
-# py3.12 pins: stop the resolver backtracking numba/llvmlite to the 3.10-only build
-uv pip install torch==2.9.0 torchvision==0.24.0 pydantic av tianshou==0.5.1 numba==0.65.1 llvmlite==0.47.0 tyro pandas dm_tree einops==0.8.1 albumentations==1.4.18
-uv pip install transformers==4.57.3 msgpack==1.1.0 msgpack-numpy==0.4.8 pyzmq==27.0.1 gymnasium==0.29.1
-# Pin mujoco: robosuite 1.4.0 (pulled by LIBERO's requirements) calls
-# mj_fullM(model, dst, M), whose signature changed in mujoco 3.10.0 (2026-06-22)
-# to mj_fullM(model, data, dst). mujoco is otherwise unpinned here, so it floats
-# to the latest release and crashes env creation. Pin below the break (matches
-# the RoboCasa island's existing mujoco==3.3.1 pin).
-uv pip install numpy==1.26.4 mujoco==3.3.1
-
-# Expose gr00t from the repo root via a .pth: no dependency re-resolution, and
-# the island supplies gr00t's runtime deps itself (matches the old --no-deps).
-python -c "import sysconfig, pathlib; pathlib.Path(sysconfig.get_path('purelib'), 'gr00t.pth').write_text(pathlib.Path('$PROJECT_REPO').resolve().as_posix() + '\n')"
-
-if [[ ! -d "$HOME/.libero" ]]; then
-    printf 'n\n' | python -c "from gr00t.eval.sim.LIBERO.libero_env import register_libero_envs"
+uv pip install --python "$SIM_ENV/bin/python" \
+  robosuite==1.4.0 bddl==1.0.1 gym==0.26.2 easydict==1.13 future==1.0.0 \
+  h5py==3.14.0 mujoco==3.3.1 numpy==1.26.4 numba==0.65.1 llvmlite==0.47.0 \
+  opencv-python==4.10.0.84 imageio==2.37.0 pyyaml==6.0.3 termcolor==3.2.0 \
+  gymnasium==0.29.1 msgpack==1.1.0 msgpack-numpy==0.4.8 pyzmq==27.0.1
+uv pip install --python "$SIM_ENV/bin/python" --no-deps -e "$LIBERO_REPO" \
+  --config-settings editable_mode=compat
+if [[ ! -f "$HOME/.libero/config.yaml" ]]; then
+  printf 'n\n' | "$SIM_ENV/bin/python" -c 'from libero.libero import get_libero_path; print(get_libero_path("bddl_files"))'
 fi
-python - <<'PY'
-import os
-os.environ.setdefault("MUJOCO_GL", "egl")
-os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
-from gr00t.eval.sim.LIBERO.libero_env import register_libero_envs
-register_libero_envs()
-import gymnasium as gym
-env = gym.make("libero_sim/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate")
-env.reset()
-env.close()
-print("Env OK:", type(env))
+MUJOCO_GL=egl PYOPENGL_PLATFORM=egl TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 "$SIM_ENV/bin/python" - <<'PY'
+from libero.libero import benchmark, get_libero_path
+from gr00t.eval.sim.LIBERO.libero_env import LiberoEnv
+from pathlib import Path
+suite = benchmark.get_benchmark_dict()['libero_spatial']()
+task = suite.get_task(0)
+env = LiberoEnv(str(Path(get_libero_path('bddl_files')) / task.problem_folder / task.bddl_file), str(task.language))
+try:
+    env.reset(seed=7, options={'initial_state': suite.get_task_init_states(0)[0], 'wait_steps': 10})
+    env.step({'action.' + k: [1.0 if k == 'gripper' else 0.0] for k in ('x','y','z','roll','pitch','yaw','gripper')})
+    print('Native LiberoEnv Spatial simulator smoke passed')
+finally:
+    env.close()
 PY
-
-#final_info -> 2.9.1 -> final_info

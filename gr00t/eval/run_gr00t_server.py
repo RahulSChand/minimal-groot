@@ -87,6 +87,9 @@ class ServerConfig:
     use_sim_policy_wrapper: bool = False
     """Whether to use the sim policy wrapper"""
 
+    compile: bool = False
+    """Compile the native N1.5/N1.6/N1.7 action transformer (opt-in)."""
+
 
 def main(config: ServerConfig):
     config.embodiment_tag = EmbodimentTag.resolve(config.embodiment_tag)
@@ -107,6 +110,7 @@ def main(config: ServerConfig):
             model_path=config.model_path,
             device=config.device,
             strict=config.strict,
+            compile_model=config.compile,
         )
     elif config.dataset_path is not None:
         if config.execution_horizon is None:

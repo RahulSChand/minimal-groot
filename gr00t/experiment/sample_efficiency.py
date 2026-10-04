@@ -132,7 +132,7 @@ def build_model_and_processor(args, run_dir):
 
 
 def run_budget(args, budget, manifest, plan):
-    from gr00t.eval.reference_libero import evaluate_live_model
+    from gr00t.eval.libero_evaluation import evaluate_live_model
 
     run_dir = args.output_dir / f"trajectories-{budget:03d}"
     summary_path = run_dir / "run_summary.json"
@@ -216,7 +216,6 @@ def run_budget(args, budget, manifest, plan):
             evaluation = evaluate_live_model(
                 model,
                 processor,
-                reference_project=args.reference_project,
                 eval_python=args.eval_python,
                 output_dir=checkpoint / "evaluation",
                 port=args.eval_port,
@@ -348,7 +347,7 @@ def make_plan(args, manifest):
         "model_version": args.model_version,
         "dataset_root": str(args.dataset_root),
         "trajectory_manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
-        "reference_project": str(args.reference_project),
+        "evaluation_backend": "native_libero_v1",
         "checkpoint_retention": args.checkpoint_retention,
         "hub_repo_id": args.hub_repo_id,
         "hub_version_folder": args.hub_version_folder,
@@ -424,7 +423,10 @@ def main():
     parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", action="store_true")
-    parser.add_argument("--reference-project", type=Path, default=Path("/root/post_train_vla"))
+    parser.add_argument(
+        "--reference-project", type=Path, default=Path("/root/post_train_vla"),
+        help="Deprecated and ignored; evaluation uses native minimal-groot",
+    )
     parser.add_argument("--eval-python", type=Path, default=Path("gr00t/eval/sim/LIBERO/libero_uv/.venv/bin/python"))
     parser.add_argument("--eval-workers", type=int, default=20)
     parser.add_argument("--eval-max-batch-size", type=int, default=8)
@@ -499,8 +501,6 @@ def main():
         return
     if not args.eval_python.is_file():
         raise FileNotFoundError(f"Missing LIBERO environment: {args.eval_python}")
-    if not (args.reference_project / "src/post_train_vla/policy_server.py").is_file():
-        raise FileNotFoundError(f"Missing reference evaluator: {args.reference_project}")
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for GR00T post-training")
     results = []

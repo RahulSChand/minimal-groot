@@ -24,7 +24,6 @@ export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 exec "$PROJECT_ROOT/.venv/bin/python" -m gr00t.experiment.sample_efficiency \
   --base-model-path "$MODEL_PATH" --model-version "$VERSION" \
   --dataset-root "${DATASET_ROOT:-/root/libero_spatial_post}" \
-  --reference-project "${REFERENCE_PROJECT:-/root/post_train_vla}" \
   --eval-python "${EVAL_PYTHON:-$PROJECT_ROOT/gr00t/eval/sim/LIBERO/libero_uv/.venv/bin/python}" \
   --output-dir "${OUTPUT_DIR:-/workspace/minimal-groot-outputs/n${VERSION/./}-spatial-subsets-seed42}" \
   "$@"

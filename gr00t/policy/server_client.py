@@ -235,10 +235,9 @@ class PolicyServer:
             return True  # No token required
         return request.get("api_token") == self.api_token
 
-    def run(self):
-        addr = self.socket.getsockopt_string(zmq.LAST_ENDPOINT)
-        print(f"Server is ready and listening on {addr}")
-        while self.running:
+    def serve_once(self, timeout_ms=1000):
+        """Serve at most one request, allowing an owning evaluator to monitor its child."""
+        if self.socket.poll(timeout_ms):
             try:
                 message = self.socket.recv()
                 request = MsgSerializer.from_bytes(message)
@@ -246,7 +245,7 @@ class PolicyServer:
                 # Validate token before processing request
                 if not self._validate_token(request):
                     self.socket.send(MsgSerializer.to_bytes({"error": "Unauthorized: Invalid API token"}))
-                    continue
+                    return
 
                 endpoint = request.get("endpoint", "get_action")
 
@@ -262,6 +261,12 @@ class PolicyServer:
 
                 print(traceback.format_exc())
                 self.socket.send(MsgSerializer.to_bytes({"error": str(e)}))
+
+    def run(self):
+        addr = self.socket.getsockopt_string(zmq.LAST_ENDPOINT)
+        print(f"Server is ready and listening on {addr}")
+        while self.running:
+            self.serve_once()
 
     @staticmethod
     def start_server(policy: BasePolicy, port: int, host: str = "*", api_token: str | None = None):
