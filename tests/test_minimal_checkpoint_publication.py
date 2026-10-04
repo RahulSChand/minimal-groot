@@ -6,7 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from gr00t.experiment.minimal_checkpoint_publication import publication_files, publish
+from gr00t.experiment.minimal_checkpoint_publication import (
+    publication_files,
+    publish,
+    retry_hub,
+    transient_retry_delay,
+)
 
 
 def load_finite_trainer():
@@ -155,3 +160,24 @@ def test_publish_passes_exact_allowlist_to_hub_api(tmp_path, monkeypatch):
 
     assert receipt["revision"] == "test-revision"
     assert receipt["verified_files"] == 5
+
+
+def test_rate_limit_waits_for_full_window_and_retries(monkeypatch):
+    class RateLimited(Exception):
+        response = SimpleNamespace(status_code=429, headers={})
+
+    attempts = []
+    sleeps = []
+
+    def operation():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RateLimited("slow down")
+        return "uploaded"
+
+    monkeypatch.setattr("gr00t.experiment.minimal_checkpoint_publication.time.sleep", sleeps.append)
+
+    assert transient_retry_delay(RateLimited(), 0) == 310
+    assert retry_hub("upload", operation) == "uploaded"
+    assert len(attempts) == 2
+    assert sleeps == [310]

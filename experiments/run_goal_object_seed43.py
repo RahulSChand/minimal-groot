@@ -72,8 +72,8 @@ def validate_inputs() -> None:
                 raise RuntimeError(f"Manifest mismatch at {manifest_path}: {actual} != {expected}")
 
 
-def training_command(version: str, suite: str, count: int, output: Path) -> list[str]:
-    return [
+def training_command(version: str, suite: str, count: int, output: Path, resume: dict | None = None) -> list[str]:
+    command = [
         str(PYTHON),
         str(TRAIN_SCRIPT),
         "--version", version,
@@ -86,34 +86,51 @@ def training_command(version: str, suite: str, count: int, output: Path) -> list
         "--learning-rate", str(LEARNING_RATE),
         "--seed", str(SEED),
     ]
+    if resume is not None:
+        command.extend([
+            "--resume-weights", resume["resume_weights"],
+            "--start-epoch", str(resume["start_epoch"]),
+            "--start-step", str(resume["start_step"]),
+        ])
+    return command
 
 
-def publish_checkpoint(version: str, suite: str, count: int, output: Path, epoch: int) -> None:
+def publish_checkpoint(version: str, suite: str, count: int, output: Path, epoch: int) -> bool | None:
     checkpoint = output / f"epoch-{epoch:03d}"
     receipt = output / "publication_receipts" / f"epoch-{epoch:03d}.json"
     if receipt.is_file() or not (checkpoint / "epoch.json").is_file():
-        return
+        return True if receipt.is_file() else None
     prefix = (
         f"{version}/{suite}/seed-{SEED:03d}/"
         f"trajectories-{count:03d}/epoch-{epoch:03d}"
     )
-    subprocess.run(
-        [
-            str(PYTHON), "-m", "gr00t.experiment.minimal_checkpoint_publication",
-            str(checkpoint), "--repo", HF_REPO, "--prefix", prefix,
-        ],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            [
+                str(PYTHON), "-m", "gr00t.experiment.minimal_checkpoint_publication",
+                str(checkpoint), "--repo", HF_REPO, "--prefix", prefix,
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        write_json(output / 'publication_retry.json', {
+            'prefix': prefix, 'return_code': error.returncode, 'retryable_by_campaign': True,
+            'recorded_at': time.time(),
+        })
+        print(f"publication_failed_will_retry={prefix} return_code={error.returncode}", flush=True)
+        return False
     publication = json.loads((checkpoint / "publication.json").read_text())
     write_json(receipt, publication)
     shutil.rmtree(checkpoint)
     print(f"published_and_removed_local={prefix}", flush=True)
+    return True
 
 
 def run_one(version: str, suite: str, count: int) -> None:
     global active_child
     output = output_path(version, suite, count)
     status_path = output / "status.json"
+    resume = None
     if status_path.is_file():
         status = json.loads(status_path.read_text())
         all_uploaded = all(
@@ -123,25 +140,53 @@ def run_one(version: str, suite: str, count: int) -> None:
         if status.get("status") == "complete" and all_uploaded:
             print(f"already_complete={version}/{suite}/trajectories-{count:03d}", flush=True)
             return
-        raise RuntimeError(f"Refusing to merge with incomplete non-resumable run: {output}")
+        resume_path = output / 'resume_plan.json'
+        if not resume_path.is_file():
+            raise RuntimeError(f"Incomplete run requires an explicit resume plan: {output}")
+        resume = json.loads(resume_path.read_text())
+        expected = {'version': version, 'suite': suite, 'trajectory_count': count}
+        actual = {key: resume.get(key) for key in expected}
+        if actual != expected:
+            raise RuntimeError(f"Resume plan mismatch: {actual} != {expected}")
+        resume_weights = Path(resume['resume_weights'])
+        if not (resume_weights / 'epoch.json').is_file():
+            raise FileNotFoundError(f"Resume weights are missing: {resume_weights}")
     if output.exists() and any(output.iterdir()):
         raise RuntimeError(f"Refusing to use nonempty output directory: {output}")
 
     print(f"starting={version}/{suite}/trajectories-{count:03d}", flush=True)
-    active_child = subprocess.Popen(training_command(version, suite, count, output))
+    resume_marker = output / 'resume_loaded.json'
+    if resume is not None and resume_marker.exists():
+        resume_marker.unlink()
+    active_child = subprocess.Popen(training_command(version, suite, count, output, resume))
     try:
+        if resume is not None:
+            while active_child.poll() is None and not resume_marker.is_file():
+                time.sleep(1)
+            if not resume_marker.is_file():
+                raise RuntimeError('Continuation exited before loading its resume weights')
         while active_child.poll() is None:
+            publication_failed = False
             for epoch in range(1, EPOCHS + 1):
-                publish_checkpoint(version, suite, count, output, epoch)
-            time.sleep(10)
+                if publish_checkpoint(version, suite, count, output, epoch) is False:
+                    publication_failed = True
+            time.sleep(60 if publication_failed else 10)
         return_code = active_child.wait()
-        for epoch in range(1, EPOCHS + 1):
-            publish_checkpoint(version, suite, count, output, epoch)
         if return_code != 0:
             raise subprocess.CalledProcessError(return_code, active_child.args)
         status = json.loads(status_path.read_text())
         if status.get("status") != "complete":
             raise RuntimeError(f"Training exited without complete status: {status}")
+        while True:
+            pending = []
+            for epoch in range(1, EPOCHS + 1):
+                result = publish_checkpoint(version, suite, count, output, epoch)
+                if result is not True:
+                    pending.append(epoch)
+            if not pending:
+                break
+            print(f"waiting_for_checkpoint_uploads={pending}", flush=True)
+            time.sleep(60)
     finally:
         if active_child is not None and active_child.poll() is None:
             active_child.terminate()

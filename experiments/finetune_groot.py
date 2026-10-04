@@ -52,13 +52,13 @@ def modern(args):
     tag = EmbodimentTag.LIBERO_PANDA
     versions = {'n1d5': '1.5', 'n1d6': '1.6', 'n1d7': '1.7'}
     config = Config()
-    config.model = select_model_config(args.checkpoint, versions[args.version])
+    config.model = select_model_config(args.load_checkpoint, versions[args.version])
     for name in ('tune_llm', 'tune_visual', 'tune_projector', 'tune_diffusion_model'):
         setattr(config.model, name, True)
     # N1.5 does not implement state dropout. Preserve the established N1.6/N1.7
     # finite-training recipe, which uses 0.2.
     config.model.state_dropout_prob = 0.0 if args.version == 'n1d5' else 0.2
-    config.training.start_from_checkpoint = args.checkpoint
+    config.training.start_from_checkpoint = args.load_checkpoint
     config.training.transformers_trust_remote_code = True
     artifact_dir = args.output / 'experiment_cfg'
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -170,12 +170,27 @@ def main():
     parser.add_argument('--learning-rate', type=float, default=1e-5)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--smoke', action='store_true', help='One real optimizer update, no saved weights.')
+    parser.add_argument('--resume-weights', type=Path,
+                        help='Inference checkpoint to continue from; optimizer state is reset.')
+    parser.add_argument('--start-epoch', type=int, default=1)
+    parser.add_argument('--start-step', type=int, default=0)
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.accumulation < 1:
         parser.error('Epochs, batch size and accumulation must be positive')
-    if (args.output / 'status.json').exists():
+    if args.resume_weights is None and (args.start_epoch != 1 or args.start_step != 0):
+        parser.error('--start-epoch/--start-step require --resume-weights')
+    if args.resume_weights is not None and not (2 <= args.start_epoch <= args.epochs):
+        parser.error('A continuation start epoch must be between 2 and --epochs')
+    if args.resume_weights is not None and not (args.resume_weights / 'config.json').is_file():
+        parser.error(f'Invalid resume checkpoint: {args.resume_weights}')
+    if (args.output / 'status.json').exists() and args.resume_weights is None:
         raise FileExistsError(f'Use a fresh output directory: {args.output}')
     args.output.mkdir(parents=True, exist_ok=True)
+    args.load_checkpoint = str(args.resume_weights or args.checkpoint)
+    if args.resume_weights is not None:
+        write_json(args.output / 'status.json', dict(
+            status='loading_resume_weights', resume_weights=str(args.resume_weights),
+            start_epoch=args.start_epoch, start_step=args.start_step))
     manifest = json.loads((args.dataset / 'trajectory_manifest.json').read_text())
     suites = {'libero_spatial', 'libero_goal', 'libero_object', 'libero_10'}
     if manifest['suite'] not in suites or manifest['trajectory_count'] < 1:
@@ -193,6 +208,9 @@ def main():
                         for key, sub in [('vlm', model.backbone), ('action_head', model.action_head)]}
     assert all(parameter_counts.values()) and all(p.requires_grad for p in model.parameters())
     write_json(args.output / 'run_config.json', dict(version=args.version, checkpoint=args.checkpoint,
+               resume_weights=str(args.resume_weights) if args.resume_weights else None,
+               resume_mode='weights_only_optimizer_reset' if args.resume_weights else None,
+               start_epoch=args.start_epoch, start_step=args.start_step,
                suite=manifest['suite'], trajectories=manifest['trajectory_count'], max_epochs=args.epochs, batch_size=args.batch_size,
                accumulation=args.accumulation, learning_rate=args.learning_rate, trainable_parameters=parameter_counts,
                seed=args.seed, tune_llm=True, tune_visual=True, tune_projector=True, tune_diffusion_model=True,
@@ -203,17 +221,28 @@ def main():
                commit=subprocess.check_output(['git', '-C', str(runtime), 'rev-parse', 'HEAD'], text=True).strip(),
                torch=torch.__version__, python=os.sys.version))
     shutil.copy2(args.dataset / 'trajectory_manifest.json', args.output)
+    data_generator = torch.Generator().manual_seed(args.seed)
+    if args.start_epoch > 1:
+        # Reproduce the dedicated DataLoader generator position for prior epochs.
+        for _ in range(args.start_epoch - 1):
+            torch.empty((), dtype=torch.int64).random_(generator=data_generator)
+            torch.randperm(len(dataset), generator=data_generator)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collator,
-                        num_workers=0, drop_last=False, generator=torch.Generator().manual_seed(args.seed))
+                        num_workers=0, drop_last=False, generator=data_generator)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=1e-5)
     updates_per_epoch = math.ceil(len(loader) / args.accumulation)
     total_updates = updates_per_epoch * args.epochs
     warmup = max(1, int(total_updates * .05))
-    step = 0
+    step = args.start_step
     started = time.time()
-    write_json(args.output / 'status.json', dict(status='running', epoch=0, step=0))
+    if args.resume_weights is not None:
+        write_json(args.output / 'resume_loaded.json', dict(
+            resume_weights=str(args.resume_weights), start_epoch=args.start_epoch,
+            start_step=args.start_step, optimizer_state_restored=False))
+    write_json(args.output / 'status.json', dict(status='running', epoch=args.start_epoch-1, step=step,
+               resume_weights=str(args.resume_weights) if args.resume_weights else None))
     try:
-        for epoch in range(1, args.epochs + 1):
+        for epoch in range(args.start_epoch, args.epochs + 1):
             losses = []
             optimizer.zero_grad(set_to_none=True)
             for batch_index, batch in enumerate(loader):

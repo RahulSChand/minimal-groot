@@ -14,6 +14,43 @@ def digest(path):
         return hasher.hexdigest()
 
 
+def transient_retry_delay(error, attempt):
+    """Return a retry delay for Hub throttling/server/network errors."""
+    response = getattr(error, 'response', None)
+    status = getattr(response, 'status_code', None)
+    if status == 429:
+        retry_after = response.headers.get('retry-after') if response is not None else None
+        return max(310, int(retry_after)) if retry_after and retry_after.isdigit() else 310
+    if status in {408, 409, 425} or (status is not None and status >= 500):
+        return min(300, 10 * 2**attempt)
+    try:
+        from requests.exceptions import ConnectionError, Timeout
+        if isinstance(error, (ConnectionError, Timeout)):
+            return min(300, 10 * 2**attempt)
+    except ImportError:
+        pass
+    return None
+
+
+def retry_hub(label, operation):
+    attempt = 0
+    while True:
+        try:
+            return operation()
+        except Exception as error:
+            delay = transient_retry_delay(error, attempt)
+            if delay is None:
+                raise
+            print(json.dumps({
+                'publication_retry': label,
+                'attempt': attempt + 1,
+                'delay_seconds': delay,
+                'error': repr(error),
+            }), flush=True)
+            time.sleep(delay)
+            attempt += 1
+
+
 def publication_files(folder):
     """Return only files explicitly emitted by the inference-checkpoint saver."""
     folder = Path(folder)
@@ -61,44 +98,48 @@ def publish(folder, *, repo, prefix):
     (folder / 'artifact_checksums.json').write_text(json.dumps(checks, indent=2)+'\n')
     files = sorted(files + [folder / 'artifact_checksums.json'])
     relative_files = [str(path.relative_to(folder)) for path in files]
-    for attempt in range(5):
-        try:
-            api = HfApi()
-            commit = api.upload_folder(
+    api = HfApi()
+    commit = retry_hub(
+        'upload',
+        lambda: api.upload_folder(
                 repo_id=repo,
                 folder_path=str(folder),
                 path_in_repo=prefix,
                 allow_patterns=relative_files,
                 commit_message=f'Save {prefix}',
-            )
-            revision = commit.oid
-            for start in range(0, len(files), 50):
-                group = files[start:start+50]
-                paths = [prefix+'/'+str(p.relative_to(folder)) for p in group]
-                remote = {r.path: r for r in api.get_paths_info(repo, paths, revision=revision)}
-                for path, local in zip(paths, group):
-                    r = remote[path]
-                    if r.size != local.stat().st_size:
-                        raise ValueError(f"Remote size mismatch: {path}")
-                    if r.lfs:
-                        if r.lfs.sha256 != digest(local):
-                            raise ValueError(f"Remote SHA-256 mismatch: {path}")
-                    else:
-                        blob = local.read_bytes()
-                        if r.blob_id != hashlib.sha1(b'blob '+str(len(blob)).encode()+b'\0'+blob).hexdigest():
-                            raise ValueError(f"Remote Git hash mismatch: {path}")
-                    if local.suffix == '.safetensors':
-                        meta = get_hf_file_metadata(hf_hub_url(repo, path, revision=revision))
-                        if meta.size != local.stat().st_size:
-                            raise ValueError(f"Download size mismatch: {path}")
-            receipt = dict(repo=repo, prefix=prefix, revision=revision, verified_files=len(files),
-                           sha256=checks, verified_at=time.time())
-            (folder/'publication.json').write_text(json.dumps(receipt,indent=2)+'\n')
-            return receipt
-        except Exception:
-            if attempt == 4:
-                raise
-            time.sleep(10)
+        ),
+    )
+    revision = commit.oid
+    for start in range(0, len(files), 50):
+        group = files[start:start+50]
+        paths = [prefix+'/'+str(p.relative_to(folder)) for p in group]
+        rows = retry_hub(
+            'verify_paths',
+            lambda: api.get_paths_info(repo, paths, revision=revision),
+        )
+        remote = {row.path: row for row in rows}
+        for path, local in zip(paths, group):
+            r = remote[path]
+            if r.size != local.stat().st_size:
+                raise ValueError(f"Remote size mismatch: {path}")
+            if r.lfs:
+                if r.lfs.sha256 != digest(local):
+                    raise ValueError(f"Remote SHA-256 mismatch: {path}")
+            else:
+                blob = local.read_bytes()
+                if r.blob_id != hashlib.sha1(b'blob '+str(len(blob)).encode()+b'\0'+blob).hexdigest():
+                    raise ValueError(f"Remote Git hash mismatch: {path}")
+            if local.suffix == '.safetensors':
+                meta = retry_hub(
+                    'verify_download_metadata',
+                    lambda: get_hf_file_metadata(hf_hub_url(repo, path, revision=revision)),
+                )
+                if meta.size != local.stat().st_size:
+                    raise ValueError(f"Download size mismatch: {path}")
+    receipt = dict(repo=repo, prefix=prefix, revision=revision, verified_files=len(files),
+                   sha256=checks, verified_at=time.time())
+    (folder/'publication.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
 
 
 def main():
