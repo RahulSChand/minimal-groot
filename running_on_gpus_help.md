@@ -19,11 +19,8 @@ cd /workspace/minimal-groot
 uv sync --python 3.12 --locked --extra performance --extra eval
 ```
 
-The finite-epoch campaign also uses `post_train_vla` from the sibling checkout:
-
-```bash
-uv pip install --python .venv/bin/python --no-deps -e /workspace/post_train_vla
-```
+The finite-epoch trainer and checkpoint publisher are part of this repository.
+No sibling checkout is required for training or publication.
 
 ## Models
 
@@ -130,8 +127,7 @@ datasets/libero_spatial_no_noops_1.0.0_lerobot/meta/modality.json
 
 The runtime-authoritative copy belongs in the compatible dataset's `meta/`
 directory. A matching template may also live in the code repository, but it
-must not override dataset-specific field names. A copy is embedded in every
-published checkpoint under `dataset_metadata/modality.json`.
+must not override dataset-specific field names.
 
 ### `stats.json`
 
@@ -150,10 +146,10 @@ cd /workspace/minimal-groot
 ```
 
 Generated statistics belong with the pinned dataset artifact, not as general
-source code. For this campaign they are preserved in every uploaded checkpoint
-under `dataset_metadata/stats.json`, so no separate model-repository upload is
-required. If publishing a reusable derived training dataset, include
-`meta/stats.json` in that Hugging Face dataset repository.
+source code. The processor's required normalization statistics are saved as
+`statistics.json` in every inference checkpoint. If publishing a reusable
+derived training dataset, include `meta/stats.json` in that Hugging Face
+dataset repository.
 
 ### Trajectory manifests
 
@@ -164,9 +160,8 @@ outputs/n1d7-spatial-seed43/trajectory_manifest_seed43.json
 ```
 
 The 10, 25, and 50 trajectory datasets use nested prefixes of this same
-ordering. Each checkpoint includes its run-specific `trajectory_manifest.json`.
-Manifests belong with experiment outputs/checkpoints because they record exactly
-which episodes were used.
+ordering. Run-specific manifests remain in the experiment output directory;
+they are not duplicated into every inference checkpoint.
 
 ## N1.7 Spatial campaign
 
@@ -188,6 +183,19 @@ parameters.
 
 The finite-epoch trainer saves standalone BF16 checkpoints without optimizer,
 scheduler, or RNG state. They are intentionally not resumable.
+
+The self-contained Goal/Object campaign uses only this checkout:
+
+```text
+experiments/finetune_groot.py
+experiments/run_goal_object_seed43.py
+gr00t/experiment/minimal_checkpoint_publication.py
+```
+
+Each uploaded epoch contains only the model weights, model configuration,
+processor assets, normalization statistics, epoch metadata, a strict file
+manifest, and checksums. Source trees and training logs are not copied into
+each checkpoint.
 
 At every epoch boundary the campaign:
 
@@ -235,7 +243,3 @@ outputs/n1d7-spatial-seed43/trajectories-NNN/
 A real unfrozen optimizer update was run on the 10-trajectory dataset. Vision,
 language, and action-head gradients were finite and nonzero, parameters in all
 three groups changed, and peak GPU allocation was approximately 58.6 GiB.
-
-The separate native `launch_finetune.py` entrypoint currently has a missing
-`MODEL_REGISTRY` export in `gr00t/model/__init__.py`. This campaign uses the
-finite-epoch adapter and is not affected by that native-launcher defect.

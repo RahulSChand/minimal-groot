@@ -14,7 +14,7 @@ import time
 
 
 ROOT = Path("/workspace/minimal-groot")
-TRAIN_SCRIPT = Path("/workspace/post_train_vla/scripts/finetune_groot.py")
+TRAIN_SCRIPT = ROOT / "experiments/finetune_groot.py"
 PYTHON = ROOT / ".venv/bin/python"
 OUTPUT_ROOT = ROOT / "outputs/groot-goal-object-seed43"
 HF_REPO = "Chand0320/groot-libero-goal-object-trajectory-efficiency"
@@ -99,7 +99,7 @@ def publish_checkpoint(version: str, suite: str, count: int, output: Path, epoch
     )
     subprocess.run(
         [
-            str(PYTHON), "-m", "post_train_vla.checkpoint_publication",
+            str(PYTHON), "-m", "gr00t.experiment.minimal_checkpoint_publication",
             str(checkpoint), "--repo", HF_REPO, "--prefix", prefix,
         ],
         check=True,
