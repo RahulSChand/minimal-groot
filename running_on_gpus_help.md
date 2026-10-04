@@ -22,6 +22,62 @@ uv sync --python 3.12 --locked --extra performance --extra eval
 The finite-epoch trainer and checkpoint publisher are part of this repository.
 No sibling checkout is required for training or publication.
 
+## Current self-contained Goal/Object training path
+
+Use the multiversion feature branch and run every command from the
+`minimal-groot` checkout:
+
+```bash
+cd /workspace/minimal-groot
+git switch feat/gr00t-multiversion-libero-training
+git pull --ff-only
+uv sync --python 3.12 --locked --extra performance --extra eval
+```
+
+The complete training path is owned by this repository:
+
+```text
+experiments/run_goal_object_seed43.py                 campaign orchestration
+experiments/finetune_groot.py                         finite 7-epoch trainer
+gr00t/experiment/minimal_checkpoint_publication.py   minimal HF publication
+```
+
+Do not install or invoke `post_train_vla` for this campaign. The campaign uses
+the N1.5, N1.6, and N1.7 model implementations from the checked-out
+`minimal-groot` branch and the Python environment at
+`/workspace/minimal-groot/.venv`.
+
+Validate all model paths and prepared dataset manifests without training:
+
+```bash
+.venv/bin/python experiments/run_goal_object_seed43.py --validate-only
+```
+
+Launch the full seed-43 campaign with:
+
+```bash
+.venv/bin/python experiments/run_goal_object_seed43.py
+```
+
+The campaign runs N1.5, N1.6, and N1.7 over LIBERO Goal and Object with
+10/15/25/50 trajectories, seven epochs, batch size 8, gradient accumulation 6,
+learning rate `1e-5`, and all model components unfrozen. Long-running launches
+should use the Supervisor service documented below rather than an interactive
+SSH shell.
+
+Each epoch is deliberately an inference-only, non-resumable checkpoint. The
+saver writes model weights, model configuration, processor assets,
+normalization statistics, and `epoch.json`. It then records those exact files
+in `checkpoint_manifest.json`. The publisher uploads only that allowlist plus
+`artifact_checksums.json`, verifies the remote bytes, writes a local receipt,
+and removes the uploaded local checkpoint. It never uploads source trees,
+dataset copies, optimizer state, scheduler state, or training logs.
+
+An output directory containing an incomplete run is rejected instead of being
+silently resumed. To repeat an interrupted experiment comparably, preserve or
+archive its old output directory and rerun that experiment from its original
+base model in a fresh output directory.
+
 ## Models
 
 The base checkpoints are stored under `checkpoints/`:
