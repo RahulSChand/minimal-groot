@@ -151,7 +151,7 @@ def run_one(version: str, suite: str, count: int) -> None:
         resume_weights = Path(resume['resume_weights'])
         if not (resume_weights / 'epoch.json').is_file():
             raise FileNotFoundError(f"Resume weights are missing: {resume_weights}")
-    if output.exists() and any(output.iterdir()):
+    if not status_path.is_file() and output.exists() and any(output.iterdir()):
         raise RuntimeError(f"Refusing to use nonempty output directory: {output}")
 
     print(f"starting={version}/{suite}/trajectories-{count:03d}", flush=True)
