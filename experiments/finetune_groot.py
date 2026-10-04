@@ -169,20 +169,34 @@ def main():
     parser.add_argument('--accumulation', type=int, default=6)
     parser.add_argument('--learning-rate', type=float, default=1e-5)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--num-workers', type=int, default=0)
+    parser.add_argument('--prefetch-factor', type=int, default=2)
+    parser.add_argument('--pin-memory', action='store_true')
+    parser.add_argument('--persistent-workers', action='store_true')
+    parser.add_argument('--fused-optimizer', action='store_true')
+    parser.add_argument('--benchmark-steps', type=int, default=0,
+                        help='Stop after this many real optimizer updates without saving weights.')
     parser.add_argument('--smoke', action='store_true', help='One real optimizer update, no saved weights.')
     parser.add_argument('--resume-weights', type=Path,
                         help='Inference checkpoint to continue from; optimizer state is reset.')
     parser.add_argument('--start-epoch', type=int, default=1)
     parser.add_argument('--start-step', type=int, default=0)
     args = parser.parse_args()
-    if args.epochs < 1 or args.batch_size < 1 or args.accumulation < 1:
-        parser.error('Epochs, batch size and accumulation must be positive')
+    if args.epochs < 1 or args.batch_size < 1 or args.accumulation < 1 or args.num_workers < 0:
+        parser.error('Epochs, batch size and accumulation must be positive; workers cannot be negative')
+    if args.prefetch_factor < 1 or args.benchmark_steps < 0:
+        parser.error('Prefetch factor must be positive; benchmark steps cannot be negative')
+    if args.persistent_workers and args.num_workers == 0:
+        parser.error('--persistent-workers requires --num-workers > 0')
     if args.resume_weights is None and (args.start_epoch != 1 or args.start_step != 0):
         parser.error('--start-epoch/--start-step require --resume-weights')
     if args.resume_weights is not None and not (2 <= args.start_epoch <= args.epochs):
         parser.error('A continuation start epoch must be between 2 and --epochs')
     if args.resume_weights is not None and not (args.resume_weights / 'config.json').is_file():
         parser.error(f'Invalid resume checkpoint: {args.resume_weights}')
+    if args.resume_weights is not None and args.benchmark_steps:
+        parser.error('--benchmark-steps cannot be combined with --resume-weights')
+    benchmark_steps = 1 if args.smoke else args.benchmark_steps
     if (args.output / 'status.json').exists() and args.resume_weights is None:
         raise FileExistsError(f'Use a fresh output directory: {args.output}')
     args.output.mkdir(parents=True, exist_ok=True)
@@ -213,6 +227,9 @@ def main():
                start_epoch=args.start_epoch, start_step=args.start_step,
                suite=manifest['suite'], trajectories=manifest['trajectory_count'], max_epochs=args.epochs, batch_size=args.batch_size,
                accumulation=args.accumulation, learning_rate=args.learning_rate, trainable_parameters=parameter_counts,
+               num_workers=args.num_workers, prefetch_factor=args.prefetch_factor if args.num_workers else None,
+               pin_memory=args.pin_memory, persistent_workers=args.persistent_workers,
+               fused_optimizer=args.fused_optimizer, benchmark_steps=benchmark_steps,
                seed=args.seed, tune_llm=True, tune_visual=True, tune_projector=True, tune_diffusion_model=True,
                epoch_definition='Every selected frame once, shuffled without replacement; pad chunks within episodes'))
     import gr00t
@@ -227,14 +244,22 @@ def main():
         for _ in range(args.start_epoch - 1):
             torch.empty((), dtype=torch.int64).random_(generator=data_generator)
             torch.randperm(len(dataset), generator=data_generator)
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collator,
-                        num_workers=0, drop_last=False, generator=data_generator)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=1e-5)
+    loader_options = dict(batch_size=args.batch_size, shuffle=True, collate_fn=collator,
+                          num_workers=args.num_workers, drop_last=False,
+                          pin_memory=args.pin_memory, generator=data_generator)
+    if args.num_workers:
+        loader_options.update(prefetch_factor=args.prefetch_factor,
+                              persistent_workers=args.persistent_workers)
+    loader = DataLoader(dataset, **loader_options)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=1e-5,
+                                  fused=args.fused_optimizer)
     updates_per_epoch = math.ceil(len(loader) / args.accumulation)
     total_updates = updates_per_epoch * args.epochs
     warmup = max(1, int(total_updates * .05))
     step = args.start_step
+    benchmark_frames = 0
     started = time.time()
+    torch.cuda.reset_peak_memory_stats()
     if args.resume_weights is not None:
         write_json(args.output / 'resume_loaded.json', dict(
             resume_weights=str(args.resume_weights), start_epoch=args.start_epoch,
@@ -288,6 +313,7 @@ def main():
                         write_json(args.output / 'gradient_check.json', gradients)
                     optimizer.zero_grad(set_to_none=True)
                     step += 1
+                    benchmark_frames += window_samples
                     record = dict(epoch=epoch, step=step, loss=float(loss.detach()),
                                   epoch_frames=min((batch_index + 1) * args.batch_size, len(dataset)),
                                   learning_rate=optimizer.param_groups[0]['lr'], seconds=time.time()-started)
@@ -296,9 +322,14 @@ def main():
                         stream.write(json.dumps(record) + '\n')
                     if step == 1 or step % 10 == 0:
                         write_json(args.output / 'status.json', dict(status='running', **record))
-                    if args.smoke:
-                        write_json(args.output / 'status.json', dict(status='smoke_passed', step=step,
-                                   peak_memory_gib=torch.cuda.max_memory_allocated()/2**30))
+                    if benchmark_steps and step >= benchmark_steps:
+                        elapsed = time.time() - started
+                        write_json(args.output / 'status.json', dict(
+                                   status='smoke_passed' if args.smoke else 'benchmark_passed',
+                                   step=step, frames=benchmark_frames, seconds=elapsed,
+                                   frames_per_second=benchmark_frames / elapsed,
+                                   peak_memory_allocated_gib=torch.cuda.max_memory_allocated()/2**30,
+                                   peak_memory_reserved_gib=torch.cuda.max_memory_reserved()/2**30))
                         return
             write_json(args.output / 'status.json', dict(status='running', epoch=epoch, step=step,
                        mean_loss=sum(losses)/len(losses)))

@@ -158,6 +158,13 @@ bytes, recorded in `publication_receipts/`, and then removed locally. A failed
 upload leaves the checkpoint on disk and stops the campaign rather than deleting
 an unverified artifact.
 
+The H100 campaign uses microbatch 16 with three-way gradient accumulation
+(effective batch 48), eight persistent data-loader workers, pinned memory,
+prefetch factor 4, and fused AdamW. A bounded N1.7 benchmark measured 23.52
+frames/s with 71.16 GiB peak reserved memory, versus 6.11 frames/s for the old
+microbatch-8, accumulation-6, single-process loader. Microbatch 24 was only 5%
+faster but reserved 78.03 GiB, so it is intentionally not used for the campaign.
+
 ### LIBERO Spatial trajectory subsets
 
 Run independent full-model fine-tunes on 5, 10, 15, 25, and 50 trajectories:

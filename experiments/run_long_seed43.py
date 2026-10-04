@@ -27,8 +27,10 @@ SUITES = ("long",)
 BUDGETS = (50, 100)
 SEED = 43
 EPOCHS = 6
-BATCH_SIZE = 8
-ACCUMULATION = 6
+BATCH_SIZE = 16
+ACCUMULATION = 3
+NUM_WORKERS = 8
+PREFETCH_FACTOR = 4
 LEARNING_RATE = 1e-5
 
 active_child: subprocess.Popen | None = None
@@ -83,6 +85,11 @@ def training_command(version: str, suite: str, count: int, output: Path) -> list
         "--epochs", str(EPOCHS),
         "--batch-size", str(BATCH_SIZE),
         "--accumulation", str(ACCUMULATION),
+        "--num-workers", str(NUM_WORKERS),
+        "--prefetch-factor", str(PREFETCH_FACTOR),
+        "--pin-memory",
+        "--persistent-workers",
+        "--fused-optimizer",
         "--learning-rate", str(LEARNING_RATE),
         "--seed", str(SEED),
     ]
@@ -179,6 +186,11 @@ def main() -> None:
             "seed": SEED,
             "batch_size": BATCH_SIZE,
             "gradient_accumulation": ACCUMULATION,
+            "num_workers": NUM_WORKERS,
+            "prefetch_factor": PREFETCH_FACTOR,
+            "pin_memory": True,
+            "persistent_workers": True,
+            "fused_optimizer": True,
             "learning_rate": LEARNING_RATE,
             "hf_repo": HF_REPO,
             "checkpoint_type": "model_and_processor_only_no_optimizer_or_scheduler",
