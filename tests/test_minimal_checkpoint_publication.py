@@ -1,11 +1,12 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from gr00t.experiment.minimal_checkpoint_publication import publication_files
+from gr00t.experiment.minimal_checkpoint_publication import publication_files, publish
 
 
 def load_finite_trainer():
@@ -97,3 +98,60 @@ def test_publication_files_rejects_path_traversal(tmp_path):
 
     with pytest.raises(ValueError, match="Unsafe checkpoint path"):
         publication_files(checkpoint)
+
+
+def test_publish_passes_exact_allowlist_to_hub_api(tmp_path, monkeypatch):
+    checkpoint = tmp_path / "epoch-001"
+    checkpoint.mkdir()
+    (checkpoint / "config.json").write_text("{}")
+    (checkpoint / "model.safetensors").write_bytes(b"weights")
+    (checkpoint / "epoch.json").write_text("{}")
+    (checkpoint / "runtime").mkdir()
+    (checkpoint / "runtime/source.py").write_text("must not upload")
+    (checkpoint / "checkpoint_manifest.json").write_text(
+        json.dumps(
+            {
+                "format": "groot-inference-checkpoint-v1",
+                "files": ["config.json", "epoch.json", "model.safetensors"],
+            }
+        )
+    )
+    prefix = "n1d7/goal/seed-043/trajectories-010/epoch-001"
+
+    class Api:
+        def upload_folder(self, **kwargs):
+            assert kwargs["allow_patterns"] == [
+                "artifact_checksums.json",
+                "checkpoint_manifest.json",
+                "config.json",
+                "epoch.json",
+                "model.safetensors",
+            ]
+            assert "runtime/source.py" not in kwargs["allow_patterns"]
+            return SimpleNamespace(oid="test-revision")
+
+        def get_paths_info(self, _repo, paths, revision):
+            assert revision == "test-revision"
+            rows = []
+            for remote_path in paths:
+                relative = remote_path.removeprefix(prefix + "/")
+                local = checkpoint / relative
+                rows.append(
+                    SimpleNamespace(
+                        path=remote_path,
+                        size=local.stat().st_size,
+                        lfs=SimpleNamespace(sha256=hashlib.sha256(local.read_bytes()).hexdigest()),
+                    )
+                )
+            return rows
+
+    monkeypatch.setattr("huggingface_hub.HfApi", lambda: Api())
+    monkeypatch.setattr(
+        "huggingface_hub.get_hf_file_metadata",
+        lambda _url: SimpleNamespace(size=(checkpoint / "model.safetensors").stat().st_size),
+    )
+
+    receipt = publish(checkpoint, repo="test/repo", prefix=prefix)
+
+    assert receipt["revision"] == "test-revision"
+    assert receipt["verified_files"] == 5

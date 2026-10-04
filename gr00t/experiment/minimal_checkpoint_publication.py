@@ -2,7 +2,6 @@
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
-import subprocess
 import time
 
 
@@ -64,10 +63,15 @@ def publish(folder, *, repo, prefix):
     relative_files = [str(path.relative_to(folder)) for path in files]
     for attempt in range(5):
         try:
-            subprocess.run(['hf', 'upload', repo, str(folder), prefix, '--include', *relative_files,
-                            '--commit-message', f'Save {prefix}'], check=True)
             api = HfApi()
-            revision = api.model_info(repo).sha
+            commit = api.upload_folder(
+                repo_id=repo,
+                folder_path=str(folder),
+                path_in_repo=prefix,
+                allow_patterns=relative_files,
+                commit_message=f'Save {prefix}',
+            )
+            revision = commit.oid
             for start in range(0, len(files), 50):
                 group = files[start:start+50]
                 paths = [prefix+'/'+str(p.relative_to(folder)) for p in group]
